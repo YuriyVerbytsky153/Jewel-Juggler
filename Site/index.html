@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jewel Juggler — a candlelit court of gems for iPhone and iPad</title>
+<meta name="description" content="Jewel Juggler is a juggling arcade for iPhone and iPad. Catch falling gems, toss them high, fuse crowns and bank your treasure before the cracks win. Offline, no ads.">
+<link rel="canonical" href="https://{{DOMAIN}}/">
+<meta property="og:title" content="Jewel Juggler">
+<meta property="og:description" content="Catch, toss and bank glittering gems at the king's candlelit court. Coming soon on the App Store.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://{{DOMAIN}}/">
+<meta property="og:image" content="https://{{DOMAIN}}/assets/icon-512.png">
+<meta name="theme-color" content="#120F2B">
+<link rel="icon" href="assets/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Nunito+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --velvet-deep: #120F2B; --velvet: #241F55; --velvet-light: #3D3680;
+    --teal: #1C8584; --teal-light: #45C4B9; --saffron: #F2B33D; --gold: #CC9A3D; --gold-deep: #845C1F;
+    --ivory: #F7EDD6; --parchment: #EEDCB5; --ink: #1F1733; --ink-soft: #4D405C; --rose: #CC2E45;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; font-family: "Nunito Sans", system-ui, sans-serif; color: var(--ivory); line-height: 1.6;
+         background: var(--velvet-deep) url("assets/art/tile_velvet.png") repeat; background-size: 120px; }
+  a { color: var(--saffron); }
+  h1, h2, h3, .brand { font-family: "Cinzel", Georgia, serif; letter-spacing: .04em; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  header { position: sticky; top: 0; z-index: 10; background: rgba(18,15,43,.92); backdrop-filter: blur(8px);
+           border-bottom: 2px solid var(--gold-deep); }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; color: var(--saffron); text-decoration: none; font-size: 20px; }
+  .brand img { width: 40px; height: 40px; border-radius: 10px; }
+  nav a { color: var(--ivory); text-decoration: none; margin-left: 22px; font-weight: 600; font-size: 15px; }
+  nav a:hover { color: var(--saffron); }
+  @media (max-width: 760px) { nav { display: none; } }
+
+  .hero { position: relative; overflow: hidden; padding: 72px 0 56px;
+          background: radial-gradient(ellipse at 50% 10%, rgba(255,219,140,.22), transparent 60%); }
+  .hero .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; }
+  @media (max-width: 860px) { .hero .wrap { grid-template-columns: 1fr; text-align: center; } }
+  .hero .logo { width: min(520px, 100%); }
+  .hero p.lead { font-size: 20px; max-width: 540px; }
+  @media (max-width: 860px) { .hero p.lead { margin: 0 auto; } }
+  .badge { display: inline-flex; align-items: center; gap: 10px; margin-top: 26px; padding: 14px 26px; border-radius: 999px;
+           background: linear-gradient(#F9D07A, #E39A2E); color: var(--ink); font-weight: 800; text-decoration: none;
+           border: 3px solid var(--gold-deep); box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+  .badge small { font-weight: 600; opacity: .8; }
+  .phone { justify-self: center; width: 300px; border-radius: 46px; padding: 12px; background: #0B0920;
+           border: 3px solid var(--gold); box-shadow: 0 30px 60px rgba(0,0,0,.5), 0 0 80px rgba(255,219,140,.18); }
+  .phone img { display: block; width: 100%; border-radius: 36px; }
+  .hero .gems { display: flex; gap: 10px; margin: 18px 0 0; }
+  @media (max-width: 860px) { .hero .gems { justify-content: center; } }
+  .hero .gems img { width: 38px; height: 38px; }
+
+  section { padding: 72px 0; }
+  section h2 { font-size: 34px; color: var(--saffron); text-align: center; margin: 0 0 10px; }
+  section .sub { text-align: center; max-width: 680px; margin: 0 auto 40px; color: #E4DAF2; }
+  .parchment { background: linear-gradient(var(--ivory), var(--parchment)); color: var(--ink); border-radius: 22px;
+               border: 3px solid var(--gold); box-shadow: inset 0 0 0 6px var(--ivory), inset 0 0 0 8px var(--gold), 0 14px 30px rgba(0,0,0,.35); }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; }
+  @media (max-width: 860px) { .grid3, .grid2 { grid-template-columns: 1fr; } }
+  .card { padding: 28px 26px; }
+  .card img.art { width: 84px; height: 84px; object-fit: contain; display: block; margin-bottom: 8px; }
+  .card h3 { margin: 6px 0 8px; font-size: 20px; color: var(--ink); }
+  .card p { margin: 0; color: var(--ink-soft); }
+
+  .steps { counter-reset: step; }
+  .step { position: relative; padding: 30px 26px 26px 26px; }
+  .step::before { counter-increment: step; content: counter(step, upper-roman); position: absolute; top: -22px; left: 22px;
+                  width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+                  font-family: "Cinzel", serif; font-weight: 800; background: var(--teal); color: var(--ivory); border: 3px solid var(--gold); }
+
+  .mechanic { display: grid; grid-template-columns: 160px 1fr; gap: 18px; align-items: center; padding: 18px; }
+  .mechanic img { width: 160px; border-radius: 14px; border: 2px solid var(--gold); }
+  @media (max-width: 520px) { .mechanic { grid-template-columns: 1fr; } .mechanic img { width: 100%; } }
+  .mechanic h3 { margin: 0 0 6px; color: var(--ink); }
+  .mechanic p { margin: 0; color: var(--ink-soft); }
+
+  .costumes { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; }
+  .costume { width: 132px; text-align: center; }
+  .costume img { width: 100%; height: 170px; object-fit: contain; filter: drop-shadow(0 8px 10px rgba(0,0,0,.4)); }
+  .costume b { display: block; font-family: "Cinzel", serif; color: var(--saffron); font-size: 14px; }
+  .costume span { font-size: 13px; color: #E4DAF2; }
+
+  .gallery { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+  @media (max-width: 1000px) { .gallery { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 600px) { .gallery { grid-template-columns: repeat(2, 1fr); } }
+  figure { margin: 0; }
+  figure img { width: 100%; border-radius: 18px; border: 3px solid var(--gold-deep); box-shadow: 0 10px 24px rgba(0,0,0,.4); }
+  figcaption { text-align: center; font-size: 14px; margin-top: 8px; color: #E4DAF2; }
+
+  .platforms { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
+  .chip { padding: 12px 20px; border-radius: 999px; background: rgba(18,15,43,.85); border: 2px solid var(--gold); font-weight: 700; }
+
+  .faq details { padding: 16px 22px; margin-bottom: 12px; }
+  .faq summary { cursor: pointer; font-weight: 800; color: var(--ink); }
+  .faq p { color: var(--ink-soft); margin: 10px 0 0; }
+
+  .legal { padding: 30px 32px; }
+  .legal h2 { color: var(--ink); text-align: left; font-size: 26px; }
+  .legal h3 { font-family: "Nunito Sans", sans-serif; letter-spacing: 0; font-size: 17px; margin: 20px 0 4px; color: var(--ink); }
+  .legal p, .legal li { color: var(--ink-soft); }
+  .legal .date { font-weight: 700; color: var(--ink); }
+
+  footer { padding: 34px 0 44px; text-align: center; border-top: 2px solid var(--gold-deep); background: rgba(18,15,43,.92); }
+  footer a { margin: 0 10px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/icon-512.png" alt="">Jewel Juggler</a>
+    <nav>
+      <a href="#about">About</a><a href="#how">How it works</a><a href="#mechanics">Mechanics</a>
+      <a href="#gallery">Screenshots</a><a href="#support">Support</a><a href="#privacy">Privacy</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero">
+    <div class="wrap">
+      <div>
+        <img class="logo" src="assets/art/logo.png" alt="Jewel Juggler — a court of gems">
+        <p class="lead">The king's banquet is lit by a hundred candles and the court wants a show. Slide the jester across the stage, catch every falling gem, toss it high and bank it in the chest before the cracks win.</p>
+        <div class="gems">
+          <img src="assets/art/gem_ruby.png" alt=""><img src="assets/art/gem_sapphire.png" alt=""><img src="assets/art/gem_emerald.png" alt=""><img src="assets/art/gem_topaz.png" alt=""><img src="assets/art/gem_amethyst.png" alt="">
+        </div>
+        <a class="badge" href="#support"><img src="assets/art/cap_jingle.png" alt="" width="30" height="30">Coming soon on the App Store <small>iPhone · iPad</small></a>
+      </div>
+      <div class="phone"><img src="assets/screens/v1-juggling.jpg" alt="The jester juggling gems in the candlelit hall"></div>
+    </div>
+  </div>
+
+  <section id="about">
+    <div class="wrap">
+      <h2>A juggling act for the whole court</h2>
+      <p class="sub">Jewel Juggler is a one-thumb arcade game with real depth: every catch, toss and bank is a small decision.</p>
+      <div class="grid3">
+        <div class="parchment card"><img class="art" src="assets/art/jester_motley_0.png" alt=""><h3>Easy to pick up</h3><p>Drag anywhere to slide the jester. Gems you catch fly back up by themselves, so you can focus on timing.</p></div>
+        <div class="parchment card"><img class="art" src="assets/art/chest_open.png" alt=""><h3>Hard to master</h3><p>Gems crack with every toss. Bank them late for bigger rewards, but never past the breaking point.</p></div>
+        <div class="parchment card"><img class="art" src="assets/art/rose.png" alt=""><h3>Fifteen acts</h3><p>Staged challenges with goals and roses, an endless Royal Performance and a fresh Festival Night every day.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="sub">Three moves, one stage, and a cap full of bells.</p>
+      <div class="grid3 steps">
+        <div class="parchment card step"><h3>Catch</h3><p>Slide under falling gems. Catch them dead centre to ring the cap and charge the Jingle, which slows every gem for three seconds.</p></div>
+        <div class="parchment card step"><h3>Toss</h3><p>Caught gems arc back into the air. The more gems you keep aloft at once, the louder the applause, until the court calls an Encore.</p></div>
+        <div class="parchment card step"><h3>Bank</h3><p>Tap the stage and the next catch flies into the chest. Only banked gems pay ducats for new props and costumes.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="mechanics">
+    <div class="wrap">
+      <h2>Signature mechanics</h2>
+      <p class="sub">Invented for this court, and all of them work together.</p>
+      <div class="grid2">
+        <div class="parchment mechanic"><img src="assets/art/guide_chord.png" alt="Three rubies fusing into a crown gem"><div><h3>Chord Fusion</h3><p>Catch three gems of the same colour in a row and the third fuses into a Crown Gem. It falls faster, starts with no cracks and banks for five times the points.</p></div></div>
+        <div class="parchment mechanic"><img src="assets/art/guide_wear.png" alt="A gem cracking toss by toss"><div><h3>Wear &amp; Bank</h3><p>Every toss deepens the cracks. A gem glowing red cannot take another toss: bank it now or it shatters in your hands and takes a bell.</p></div></div>
+        <div class="parchment mechanic"><img src="assets/art/guide_applause.png" alt="A cheering crowd and an Encore"><div><h3>Applause &amp; Encore</h3><p>Keep many gems in the air and the crowd rises to its feet. A full house calls an Encore: double points, and the king throws in one more gem.</p></div></div>
+        <div class="parchment mechanic"><img src="assets/art/guide_decree.png" alt="A royal decree scroll"><div><h3>Royal Decrees</h3><p>The king announces his whims a few seconds ahead: Ruby Hour, Rotten Tomatoes that must be let fall, or a Candle Gust that darkens the hall.</p></div></div>
+        <div class="parchment mechanic"><img src="assets/art/guide_joker.png" alt="The harlequin joker gem"><div><h3>The Joker Gem</h3><p>A rare harlequin gem that completes any chord. Handle it with care: dropping it costs two bells.</p></div></div>
+        <div class="parchment mechanic"><img src="assets/art/guide_jingle.png" alt="The jester's cap ringing"><div><h3>The Jingle</h3><p>Sweet-spot catches ring the cap. When it is fully charged, one press slows every gem in the hall.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="wardrobe">
+    <div class="wrap">
+      <h2>The Wardrobe</h2>
+      <p class="sub">Seven costumes, each with its own perk that bends one rule of the act.</p>
+      <div class="costumes">
+        <div class="costume"><img src="assets/art/jester_motley_0.png" alt=""><b>Classic Motley</b><span>Every rule as written</span></div>
+        <div class="costume"><img src="assets/art/jester_moonlitFool_0.png" alt=""><b>Moonlit Fool</b><span>Amethysts count twice</span></div>
+        <div class="costume"><img src="assets/art/jester_saffronSprite_0.png" alt=""><b>Saffron Sprite</b><span>20% quicker feet</span></div>
+        <div class="costume"><img src="assets/art/jester_tidewaterMime_0.png" alt=""><b>Tidewater Mime</b><span>Sturdier sapphires</span></div>
+        <div class="costume"><img src="assets/art/jester_emberHarlequin_0.png" alt=""><b>Ember Harlequin</b><span>Double ruby ducats</span></div>
+        <div class="costume"><img src="assets/art/jester_velvetHerald_0.png" alt=""><b>Velvet Herald</b><span>Earlier decree warnings</span></div>
+        <div class="costume"><img src="assets/art/jester_starlitJoker_0.png" alt=""><b>Starlit Jester</b><span>Luckier Joker gems</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="gallery">
+    <div class="wrap">
+      <h2>From the stage</h2>
+      <p class="sub">Real captures from the iPhone version.</p>
+      <div class="gallery">
+        <figure><img src="assets/screens/v1-stage.jpg" alt="Home stage" loading="lazy"><figcaption>The court stage</figcaption></figure>
+        <figure><img src="assets/screens/v1-juggling.jpg" alt="Juggling" loading="lazy"><figcaption>Gems aloft</figcaption></figure>
+        <figure><img src="assets/screens/v1-decree.jpg" alt="Decree warning" loading="lazy"><figcaption>A decree is coming</figcaption></figure>
+        <figure><img src="assets/screens/v1-rubyhour.jpg" alt="Ruby Hour" loading="lazy"><figcaption>Ruby Hour in force</figcaption></figure>
+        <figure><img src="assets/screens/v1-curtain.jpg" alt="Curtain call" loading="lazy"><figcaption>Curtain Call</figcaption></figure>
+        <figure><img src="assets/screens/v1-wardrobe.jpg" alt="Wardrobe" loading="lazy"><figcaption>The Wardrobe</figcaption></figure>
+        <figure><img src="assets/screens/v1-trunk.jpg" alt="Prop Trunk" loading="lazy"><figcaption>The Prop Trunk</figcaption></figure>
+        <figure><img src="assets/screens/v1-acts.jpg" alt="Acts" loading="lazy"><figcaption>Fifteen acts</figcaption></figure>
+        <figure><img src="assets/screens/v1-playbills.jpg" alt="Playbills" loading="lazy"><figcaption>Playbills and rosettes</figcaption></figure>
+        <figure><img src="assets/screens/v1-guide.jpg" alt="How to play" loading="lazy"><figcaption>Illustrated guide</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="platforms">
+    <div class="wrap">
+      <h2>Platforms</h2>
+      <p class="sub">Built natively for Apple devices.</p>
+      <div class="platforms">
+        <span class="chip">iPhone</span><span class="chip">iPad</span><span class="chip">iOS 18 or later</span>
+        <span class="chip">Plays fully offline</span><span class="chip">No ads</span><span class="chip">No real money</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="support">
+    <div class="wrap">
+      <h2>Support</h2>
+      <p class="sub">Questions, ideas or a bug to report? Write to <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> and we will answer within a few working days.</p>
+      <div class="faq">
+        <details class="parchment"><summary>What are ducats? Can I buy them?</summary><p>Ducats are the court's play currency. You earn them only by banking gems and winning roses. They cannot be bought, sold or exchanged for anything outside the game.</p></details>
+        <details class="parchment"><summary>Why did my gem shatter?</summary><p>Each toss cracks a gem a little more. When its cracks glow red, the next catch must be banked (tap the stage or press BANK first), otherwise it shatters and costs a bell.</p></details>
+        <details class="parchment"><summary>How do I earn three roses in an act?</summary><p>Finish the act's goal without losing a single bell. Losing one bell gives two roses, more gives one. Each new rose also pays 40 ducats.</p></details>
+        <details class="parchment"><summary>Does the game need an internet connection?</summary><p>No. Jewel Juggler plays completely offline and keeps your progress on your device.</p></details>
+        <details class="parchment"><summary>Is there a left-handed layout?</summary><p>Yes. In Settings, turn on Left-handed to swap the BANK and JINGLE buttons. Sound, music and haptics can be switched there too.</p></details>
+        <details class="parchment"><summary>How do I start over?</summary><p>Settings → Reset progress erases ducats, props, costumes, roses and posters. Your settings stay as they are.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <div class="wrap">
+      <div class="parchment legal">
+        <h2>Privacy Policy</h2>
+        <p class="date">Effective 3 November 2026</p>
+        <p>Jewel Juggler ("the app", "we") respects your privacy. This policy explains what the app does with information.</p>
+        <h3>Information we collect</h3>
+        <p>None. The app does not collect, transmit or sell personal data. It has no accounts, no analytics, no advertising and no tracking.</p>
+        <h3>Data stored on your device</h3>
+        <p>Your progress (ducats, props, costumes, roses, recent shows and settings) is stored only on your device. It is removed when you reset progress in Settings or delete the app.</p>
+        <h3>Children</h3>
+        <p>The app is suitable for all ages and collects no information from anyone, including children.</p>
+        <h3>Contact</h3>
+        <p>Questions about this policy: <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
+        <h3>Changes</h3>
+        <p>If this policy changes, the new version will be published on this page with a new effective date.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="terms" style="padding-top:0">
+    <div class="wrap">
+      <div class="parchment legal">
+        <h2>Terms of Use</h2>
+        <p class="date">Effective 3 November 2026</p>
+        <h3>Licence</h3>
+        <p>You may download and use Jewel Juggler for personal, non-commercial entertainment, under the Apple Media Services Terms and Conditions and these terms.</p>
+        <h3>Virtual items</h3>
+        <p>Ducats, props, costumes, roses and other in-game items have no monetary value, cannot be purchased with real money and cannot be exchanged, transferred or redeemed outside the app.</p>
+        <h3>Fair play</h3>
+        <p>Please do not reverse-engineer, modify or redistribute the app or its artwork, music and sounds.</p>
+        <h3>Disclaimer</h3>
+        <p>The app is provided "as is". We work hard to keep it running smoothly, but we cannot guarantee it will always be free of errors.</p>
+        <h3>Contact</h3>
+        <p><a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><a href="#support">Support</a><a href="#privacy">Privacy Policy</a><a href="#terms">Terms of Use</a></p>
+    <p>© 2026 Jewel Juggler. All rights reserved.</p>
+  </div>
+</footer>
+</body>
+</html>
