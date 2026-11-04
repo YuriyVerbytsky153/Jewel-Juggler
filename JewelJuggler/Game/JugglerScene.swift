@@ -439,7 +439,12 @@ final class JugglerScene: SKScene {
     private func shake() {
         world.removeAction(forKey: "shake")
         let amount: CGFloat = 7
-        let moves = (0..<6).map { i in SKAction.moveTo(x: (i % 2 == 0 ? amount : -amount) * CGFloat(6 - i) / 6, duration: 0.035) }
+        let moves: [SKAction] = (0..<6).map { index in
+            let direction: CGFloat = index % 2 == 0 ? 1 : -1
+            let decay = CGFloat(6 - index) / CGFloat(6)
+            let offset = amount * direction * decay
+            return SKAction.moveTo(x: offset, duration: 0.035)
+        }
         world.run(.sequence(moves + [.moveTo(x: 0, duration: 0.03)]), withKey: "shake")
     }
 
