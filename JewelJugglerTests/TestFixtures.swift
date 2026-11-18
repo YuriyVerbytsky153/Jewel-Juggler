@@ -20,9 +20,10 @@ enum Fixtures {
 
     /// Drops a gem straight into the jester's hands and runs until it has been caught.
     @discardableResult
-    static func catchOne(_ session: inout RunSession, _ kind: GemKind, tosses: Int = 0, offset: Double = 0, bank: Bool = false) -> [RunEvent] {
+    static func catchOne(_ session: inout RunSession, _ kind: GemKind, tosses: Int = 0, offset: Double = 0, bank: Bool = false,
+                         enchantment: Enchantment? = nil) -> [RunEvent] {
         if bank { session.armBank() }
-        session.insertForTesting(kind, x: session.jesterX + offset, y: RunSession.handY + 0.02, vy: -0.4, tosses: tosses)
+        session.insertForTesting(kind, x: session.jesterX + offset, y: RunSession.handY + 0.02, vy: -0.4, tosses: tosses, enchantment: enchantment)
         return session.advance(by: 0.1)
     }
 

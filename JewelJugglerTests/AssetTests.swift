@@ -22,8 +22,20 @@ struct AssetTests {
         }
     }
 
+    @Test func everyTourAndWorkshopSymbolExists() {
+        let symbols = TourCard.allCases.map(\.symbol) + Enchantment.allCases.map(\.symbol)
+            + [TourStopKind.show, .tournament, .tavern, .banquet].map(\.symbol)
+            + ["rhombus.fill", "hammer.fill", "map.fill", "suit.spade.fill", "bell.fill", "theatermasks.fill", "checkmark.circle.fill"]
+        for name in symbols {
+            #expect(UIImage(systemName: name) != nil, "Missing SF Symbol \(name)")
+        }
+    }
+
     @Test func guidePagesUseTheirOwnArt() {
-        #expect(GuideView.pages.count == 9)
-        #expect(Set(GuideView.pages.map(\.art)).count == 9)
+        #expect(GuideView.pages.count == 11)
+        #expect(Set(GuideView.pages.map(\.picture)).count == GuideView.pages.count)
+        for page in GuideView.pages {
+            if let art = page.art { #expect(UIImage(named: art) != nil) } else { #expect(UIImage(systemName: page.symbol ?? "") != nil) }
+        }
     }
 }
