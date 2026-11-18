@@ -40,7 +40,7 @@ struct ShowHUD: Equatable {
         bankArmed = s.bankArmed
         airborne = s.airborne
         goalProgress = s.goalProgress
-        hasGrace = s.loadout.hasGrace && !s.graceUsed
+        hasGrace = s.hasGrace && !s.graceUsed
     }
 }
 
@@ -103,7 +103,14 @@ final class GameViewModel {
     var title: String { mode.title }
     var costume: Costume { profileStore.profile.selectedCostume }
     var bestScore: Int { profileStore.profile.bestScore }
-    var goal: ActGoal? { act?.goal }
+    var goal: ActGoal? { mode.goal }
+    var tourStop: TourStop? { mode.tourStop }
+    var isTour: Bool { tourStop != nil }
+    /// Tarot cards carried into this tour stop.
+    var tourCards: [TourCard] { isTour ? profileStore.tour?.cards ?? [] : [] }
+    var tourBells: Int { profileStore.tour?.bells ?? 0 }
+    var tourMaxBells: Int { profileStore.tourMaxBells }
+    var enchantments: [Enchantment] { profileStore.profile.equippedEnchantments }
     var isRunning: Bool { phase == .running }
     var previousRoses: Int { act.map { profileStore.profile.roses(forAct: $0.index) } ?? 0 }
     var festivalBest: Int { profileStore.festivalBestToday }
@@ -119,6 +126,7 @@ final class GameViewModel {
         case .endless: "Keep the gems aloft as long as the bells last. Bank them for ducats."
         case .festival: "Tonight's seeded show. Every juggler gets the same gems. Ducats ×1.5."
         case .act: goal?.text ?? ""
+        case .tour(let stop): "\(stop.kind.title) · \(goal?.text ?? ""). Bells carry over to the next stop."
         }
     }
 
@@ -201,6 +209,8 @@ final class GameViewModel {
 
     /// Starts a fresh show of the same mode, or of another act.
     func restart(mode newMode: RunMode? = nil) {
+        // A tour stop is played once: replaying it would undo a lost show.
+        guard newMode != nil || !isTour else { return }
         countdownTask?.cancel()
         endingTask?.cancel()
         if case .paused = phase, let scene, scene.session.elapsed > 1, !scene.session.isOver {
@@ -329,6 +339,18 @@ extension GameViewModel: JugglerSceneDelegate {
             show(Callout(title: "Splat!", detail: "Let the tomatoes fall", style: .rose))
         case .tomatoSplat:
             sound.play(.tomatoSplat, volume: 0.6)
+        case .tomatoFeast:
+            sound.play(.tomatoSplat, volume: 0.6)
+            haptics.impact(.light)
+            show(Callout(title: "Temperance", detail: "The court laughs along", style: .teal))
+        case .reborn:
+            sound.play(.grace)
+            haptics.notify(.success)
+            show(Callout(title: "Phoenix!", detail: "The opal reforms and flies again", style: .gold))
+        case .powderBurst(let count):
+            sound.play(.encore)
+            haptics.impact(.heavy)
+            show(Callout(title: "Powder Garnet!", detail: count == 1 ? "One more gem swept into the chest" : "\(count) more gems swept into the chest", style: .gold))
         case .encoreStarted:
             sound.play(.encore)
             haptics.notify(.success)
