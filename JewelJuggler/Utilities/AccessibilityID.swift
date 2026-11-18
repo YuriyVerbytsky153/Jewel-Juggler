@@ -10,6 +10,7 @@ enum AccessibilityID {
         static let settings = "stage.settings"
         static let guide = "stage.guide"
         static let best = "stage.best"
+        static let tour = "stage.tour"
         static func card(_ key: String) -> String { "stage.card.\(key)" }
     }
 
@@ -83,5 +84,25 @@ enum AccessibilityID {
         static let score = "curtain.score"
         static let ducats = "curtain.ducats"
         static let next = "curtain.next"
+        static let shards = "curtain.shards"
+        static let tour = "curtain.tour"
+        static let map = "curtain.map"
+    }
+
+    enum Tour {
+        static let screen = "tour.screen"
+        static let start = "tour.start"
+        static let retire = "tour.retire"
+        static let perform = "tour.perform"
+        static let bells = "tour.bells"
+        static func stop(_ id: String) -> String { "tour.stop.\(id)" }
+        static func offer(_ card: TourCard) -> String { "tour.offer.\(card.rawValue)" }
+    }
+
+    enum Workshop {
+        static let screen = "workshop.screen"
+        static let shards = "workshop.shards"
+        static let buySlot = "workshop.buySlot"
+        static func action(_ enchantment: Enchantment) -> String { "workshop.action.\(enchantment.rawValue)" }
     }
 }
