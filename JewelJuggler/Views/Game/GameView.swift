@@ -560,6 +560,21 @@ struct PlaybillCard: View {
             }
             .padding(10)
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.Colors.ink.opacity(0.06)))
+            if viewModel.isTour {
+                TourPlaybillDetails(bells: viewModel.tourBells, maxBells: viewModel.tourMaxBells, cards: viewModel.tourCards)
+            }
+            if !viewModel.enchantments.isEmpty {
+                HStack(spacing: 6) {
+                    Text("Jewel case")
+                        .font(.court(.caption, weight: .bold))
+                        .foregroundStyle(Theme.Colors.inkSoft)
+                    ForEach(viewModel.enchantments) { enchantment in
+                        EnchantedGemIcon(enchantment: enchantment, size: 30)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Jewel case: \(viewModel.enchantments.map(\.title).joined(separator: ", "))")
+            }
             if viewModel.act != nil {
                 RoseRow(roses: viewModel.previousRoses, size: 24)
             } else if case .festival = viewModel.mode, viewModel.festivalBest > 0 {
@@ -614,13 +629,15 @@ struct PauseCard: View {
             Button("Resume") { viewModel.resume() }
                 .buttonStyle(CourtButtonStyle(kind: .gold, size: 22))
                 .accessibilityIdentifier(AccessibilityID.Game.resume)
-            Button(viewModel.act == nil ? "Restart the show" : "Restart the act") { viewModel.restart() }
-                .buttonStyle(CourtButtonStyle(kind: .teal, size: 18))
-                .accessibilityIdentifier(AccessibilityID.Game.restart)
+            if !viewModel.isTour {
+                Button(viewModel.act == nil ? "Restart the show" : "Restart the act") { viewModel.restart() }
+                    .buttonStyle(CourtButtonStyle(kind: .teal, size: 18))
+                    .accessibilityIdentifier(AccessibilityID.Game.restart)
+            }
             Button("Leave the stage", action: onLeave)
                 .buttonStyle(CourtButtonStyle(kind: .plum, size: 18))
                 .accessibilityIdentifier(AccessibilityID.Game.quit)
-            Text("Ducats you already banked are kept.")
+            Text(viewModel.isTour ? "Leaving now ends the Royal Tour. Banked ducats are kept." : "Ducats you already banked are kept.")
                 .font(.court(.footnote))
                 .foregroundStyle(Theme.Colors.inkSoft)
         }
@@ -629,5 +646,106 @@ struct PauseCard: View {
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.Colors.velvetDeep.opacity(0.82).ignoresSafeArea())
+    }
+}
+
+// MARK: - Tour and workshop pieces
+
+/// The bells and tarot cards a jester carries into a tour stop.
+struct TourPlaybillDetails: View {
+    let bells: Int
+    let maxBells: Int
+    let cards: [TourCard]
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 2) {
+                ForEach(0..<max(maxBells, bells), id: \.self) { index in
+                    Image(index < bells ? Art.bellOn : Art.bellOff)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(bells) of \(maxBells) bells carried")
+            if cards.isEmpty {
+                Text("No tarot cards in hand yet")
+                    .font(.court(.caption, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.inkSoft)
+            } else {
+                HStack(spacing: 4) {
+                    ForEach(cards) { card in
+                        TarotChip(card: card)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Tarot in hand: \(cards.map(\.title).joined(separator: ", "))")
+            }
+        }
+    }
+}
+
+/// A tiny card face for rows of held tarot cards.
+struct TarotChip: View {
+    let card: TourCard
+    var size: CGFloat = 26
+
+    var body: some View {
+        Image(systemName: card.symbol)
+            .font(.system(size: size * 0.45, weight: .bold))
+            .foregroundStyle(Theme.Colors.saffron)
+            .frame(width: size, height: size * 1.4)
+            .background(RoundedRectangle(cornerRadius: 4).fill(Theme.Colors.velvet))
+            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.Colors.gold, lineWidth: 1.2))
+            .accessibilityLabel(card.title)
+    }
+}
+
+/// A gem with the enchantment's mark set in the corner.
+struct EnchantedGemIcon: View {
+    let enchantment: Enchantment
+    var size: CGFloat = 44
+
+    var body: some View {
+        Image(Art.gem(enchantment.color))
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: enchantment.symbol)
+                    .font(.system(size: size * 0.26, weight: .bold))
+                    .foregroundStyle(Theme.Colors.ivory)
+                    .frame(width: size * 0.46, height: size * 0.46)
+                    .background(Circle().fill(Theme.Colors.velvetDeep))
+                    .overlay(Circle().strokeBorder(Theme.Colors.saffron, lineWidth: 1))
+                    .offset(x: size * 0.08, y: size * 0.08)
+            }
+            .accessibilityLabel(enchantment.title)
+    }
+}
+
+/// Shards of the Jeweller's Workshop on a small velvet purse.
+struct ShardBadge: View {
+    let amount: Int
+    var compact = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "rhombus.fill")
+                .font(.system(size: compact ? 15 : 19, weight: .bold))
+                .foregroundStyle(LinearGradient(colors: [Theme.Colors.gem(.amethyst), Theme.Colors.gem(.sapphire)], startPoint: .top, endPoint: .bottom))
+            Text(Formatters.integer(amount))
+                .font(.engraved(compact ? 16 : 19, relativeTo: .headline))
+                .foregroundStyle(Theme.Colors.ivory)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(Theme.Colors.velvetDeep.opacity(0.88)))
+        .overlay(Capsule().strokeBorder(Theme.Colors.gem(.amethyst).opacity(0.85), lineWidth: 1.5))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(Formatters.integer(amount)) shards")
     }
 }
