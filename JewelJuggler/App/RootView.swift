@@ -55,6 +55,11 @@ struct RootView: View {
             ActsView(viewModel: ActsViewModel(profileStore: dependencies.profileStore), onBack: back, onPerform: start)
         case .playbills:
             PlaybillsView(viewModel: PlaybillsViewModel(profileStore: dependencies.profileStore), onBack: back)
+        case .tour:
+            TourView(viewModel: TourViewModel(profileStore: dependencies.profileStore, haptics: dependencies.haptics, sound: dependencies.sound),
+                     onBack: back, onPerform: start)
+        case .workshop:
+            WorkshopView(viewModel: WorkshopViewModel(profileStore: dependencies.profileStore, haptics: dependencies.haptics, sound: dependencies.sound), onBack: back)
         case .settings:
             SettingsView(viewModel: SettingsViewModel(settings: dependencies.settings, profileStore: dependencies.profileStore, sound: dependencies.sound),
                          onBack: back, onGuide: { path.append(.guide) })

@@ -51,6 +51,7 @@ final class AppDependencies {
             // Deterministic state so UI tests can shop without performing first.
             settings.hasSeenGuide = true
             try profileStore.grantDucats(5000)
+            try profileStore.grantShards(200)
         }
     }
 

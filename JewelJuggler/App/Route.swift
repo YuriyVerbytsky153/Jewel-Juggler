@@ -6,6 +6,8 @@ enum AppRoute: String, Hashable, CaseIterable, Identifiable {
     case trunk
     case acts
     case playbills
+    case tour
+    case workshop
     case settings
     case guide
 
@@ -17,6 +19,8 @@ enum AppRoute: String, Hashable, CaseIterable, Identifiable {
         case .trunk: "Prop Trunk"
         case .acts: "Acts"
         case .playbills: "Playbills"
+        case .tour: "Royal Tour"
+        case .workshop: "Workshop"
         case .settings: "Settings"
         case .guide: "How to Play"
         }
