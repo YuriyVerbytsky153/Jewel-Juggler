@@ -205,6 +205,7 @@ struct RoseRow: View {
 struct CourtHeader: View {
     let title: String
     var ducats: Int?
+    var shards: Int?
     let onBack: () -> Void
 
     var body: some View {
@@ -221,12 +222,16 @@ struct CourtHeader: View {
                         .resizable(capInsets: PanelInsets.ribbon, resizingMode: .stretch)
                 }
                 .accessibilityAddTraits(.isHeader)
-                .padding(.horizontal, ducats == nil ? 56 : 110)
+                .padding(.horizontal, ducats == nil && shards == nil ? 56 : 110)
             HStack {
                 MedallionButton(image: Art.Medallion.back, label: "Back", action: onBack)
                     .accessibilityIdentifier(AccessibilityID.Common.back)
                 Spacer()
                 if let ducats { DucatBadge(amount: ducats, compact: true) }
+                if let shards {
+                    ShardBadge(amount: shards, compact: true)
+                        .accessibilityIdentifier(AccessibilityID.Workshop.shards)
+                }
             }
         }
         .padding(.horizontal, 12)
