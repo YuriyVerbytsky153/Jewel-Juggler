@@ -27,7 +27,7 @@ enum Decree: String, CaseIterable, Codable, Sendable {
 }
 
 /// What an act asks the jester to do.
-enum ActGoal: Equatable, Sendable {
+enum ActGoal: Codable, Hashable, Sendable {
     case bank(Int)
     case crowns(Int)
     case airborne(Int)
@@ -108,12 +108,15 @@ enum RunMode: Equatable, Hashable, Sendable {
     case festival(dayKey: String)
     /// A staged act with a goal.
     case act(Int)
+    /// One stop of the Royal Tour.
+    case tour(TourStop)
 
     var storageKey: String {
         switch self {
         case .endless: "endless"
         case .festival: "festival"
         case .act: "act"
+        case .tour: "tour"
         }
     }
 
@@ -122,11 +125,20 @@ enum RunMode: Equatable, Hashable, Sendable {
         return nil
     }
 
+    var tourStop: TourStop? {
+        if case .tour(let stop) = self { return stop }
+        return nil
+    }
+
+    /// The goal that ends the show, if any.
+    var goal: ActGoal? { RunConfig.make(for: self).goal }
+
     var title: String {
         switch self {
         case .endless: "Royal Performance"
         case .festival: "Festival Night"
         case .act(let index): ActCatalog.act(index).map { "Act \($0.number): \($0.name)" } ?? "Act"
+        case .tour(let stop): "Royal Tour: \(stop.name)"
         }
     }
 }
@@ -138,6 +150,10 @@ struct RunConfig: Equatable, Sendable {
     var jokers: Bool
     var goal: ActGoal?
     var ducatMultiplier: Double
+    /// When the first decree is announced.
+    var firstDecree = 20.0
+    /// Seconds between the end of one decree and the next.
+    var decreeGap: ClosedRange<Double> = 14...20
 
     static func make(for mode: RunMode) -> RunConfig {
         switch mode {
@@ -151,6 +167,14 @@ struct RunConfig: Equatable, Sendable {
             } else {
                 make(for: .endless)
             }
+        case .tour(let stop):
+            if stop.kind == .banquet {
+                // The king's own table: decrees come thick and fast.
+                RunConfig(maxGems: stop.maxGems, decrees: stop.decrees, jokers: stop.jokers, goal: stop.goal, ducatMultiplier: 1,
+                          firstDecree: 12, decreeGap: 8...11)
+            } else {
+                RunConfig(maxGems: max(1, stop.maxGems), decrees: stop.decrees, jokers: stop.jokers, goal: stop.goal, ducatMultiplier: 1)
+            }
         }
     }
 }
@@ -160,6 +184,12 @@ struct RunSetup: Equatable, Sendable {
     let mode: RunMode
     let seed: UInt64
     let loadout: Loadout
+    /// Tarot rules carried by a Royal Tour.
+    var modifiers: RunModifiers = .none
+    /// Bells carried in from the previous tour stop; nil starts with a full cap.
+    var startBells: Int?
+    /// Enchantments worn from the Jeweller's Workshop.
+    var enchantments: [Enchantment] = []
 
     var config: RunConfig { RunConfig.make(for: mode) }
 }
