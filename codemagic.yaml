@@ -7,14 +7,18 @@ workflows:
       app_store_connect: jeweljuggler
     environment:
       xcode: 27.1
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.jeweljuggler.circus
       vars:
         APP_STORE_APPLE_ID: "6830754813"
     scripts:
-      - name: Configure existing signing profiles
-        script: xcode-project use-profiles
+      - name: Fetch App Store signing files from the portal
+        script: |
+          keychain initialize
+          # Pull the current App Store profile for this bundle id straight from the portal
+          # (only jeweljuggler_push, with Push, exists there) and the distribution cert.
+          app-store-connect fetch-signing-files "com.jeweljuggler.circus" \
+            --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
       - name: Build signed release
         script: |
           BUILD_NUMBER=$(date -u +%Y%m%d%H%M)
