@@ -14,6 +14,8 @@ struct PlayerStats: Equatable, Sendable {
     var bestAirborne = 0
     var totalRoses = 0
     var ownedCostumes = 1
+    var toursWon = 0
+    var enchantmentsOwned = 0
 }
 
 /// A rosette on the Playbills wall.
@@ -50,6 +52,8 @@ enum AchievementCatalog {
         Rule(id: "star", title: "Star of the Court", detail: "Score 5,000 in one show.", goal: 5000) { $0.bestScore },
         Rule(id: "bouquet", title: "Bouquet", detail: "Collect 30 roses from the acts.", goal: 30) { $0.totalRoses },
         Rule(id: "wardrobe", title: "Wardrobe Keeper", detail: "Own 4 costumes.", goal: 4) { $0.ownedCostumes },
+        Rule(id: "grandTour", title: "Grand Tour", detail: "Win a Royal Tour at the King's Banquet.", goal: 1) { $0.toursWon },
+        Rule(id: "jeweller", title: "Master Jeweller", detail: "Cut 3 enchantments in the workshop.", goal: 3) { $0.enchantmentsOwned },
     ]
 
     static var count: Int { rules.count }

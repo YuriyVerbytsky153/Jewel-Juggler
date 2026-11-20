@@ -321,6 +321,20 @@ final class JugglerScene: SKScene {
             splat.colorBlendFactor = 0.7
             world.addChild(splat)
             splat.run(.sequence([.wait(forDuration: 0.8), .fadeOut(withDuration: 0.6), .removeFromParent()]))
+        case .tomatoFeast(let gem):
+            detach(gem.id)
+            burst(at: point(x: gem.x, y: RunSession.handY), texture: Art.Scene.juice, color: UIColor(red: 0.85, green: 0.2, blue: 0.12, alpha: 1), count: 8, speed: 90, life: 0.5, scale: 0.45, gravity: true)
+            floatText("Ha!", at: point(x: gem.x, y: RunSession.handY + 0.08), color: UIColor(Theme.Colors.ivory))
+        case .reborn(let gem):
+            if let node = gemNodes[gem.id] {
+                node.pop()
+                burst(at: node.position, texture: Art.Scene.spark, color: UIColor(red: 1, green: 0.45, blue: 0.15, alpha: 1), count: 18, speed: 160, life: 0.7, scale: 0.55)
+            }
+        case .powderBurst(let count):
+            if count > 0 {
+                burst(at: CGPoint(x: stageRect.midX, y: stageRect.midY), texture: Art.Scene.spark, color: UIColor(Theme.Colors.saffron), count: 24, speed: 240, life: 0.7, scale: 0.6)
+                shake()
+            }
         case .encoreStarted:
             burst(at: CGPoint(x: stageRect.midX, y: stageRect.maxY - 20), texture: Art.Scene.petal, color: UIColor(Theme.Colors.rose), count: 20, speed: 160, life: 1.2, scale: 0.6, gravity: true)
         case .jingleStarted:
@@ -338,16 +352,19 @@ final class JugglerScene: SKScene {
 
     private func flyToChest(_ gem: FlyingGem, points: Int) {
         let node: GemNode
+        let start: CGPoint
         if let existing = gemNodes.removeValue(forKey: gem.id) {
             node = existing
             node.shadow.removeFromParent()
+            // A Powder Garnet sweeps gems from wherever they are in the air.
+            start = existing.position
         } else {
             node = GemNode(size: gemSize)
             node.update(gem: gem, crack: 0, glow: false)
             node.zPosition = Layer.gems
             world.addChild(node)
+            start = point(x: gem.x, y: RunSession.handY)
         }
-        let start = point(x: gem.x, y: RunSession.handY)
         node.position = start
         let end = CGPoint(x: chest.position.x, y: chest.position.y + chest.size.height * 0.5)
         let path = CGMutablePath()
@@ -490,7 +507,10 @@ final class GemNode: SKNode {
     let crack = SKSpriteNode()
     let halo = SKSpriteNode(imageNamed: Art.Scene.soft)
     let shadow = SKSpriteNode(imageNamed: Art.Scene.shadow)
+    /// The enchantment's mark, set in the lower corner.
+    let rune = SKSpriteNode()
     private var kind: GemKind?
+    private var enchantment: Enchantment?
     private var crackStage = 0
     private var baseSize: CGFloat
 
@@ -506,6 +526,9 @@ final class GemNode: SKNode {
         addChild(halo)
         addChild(body)
         addChild(crack)
+        rune.zPosition = 0.2
+        rune.isHidden = true
+        addChild(rune)
         resize(size)
     }
 
@@ -520,6 +543,8 @@ final class GemNode: SKNode {
         body.size = CGSize(width: size * scale, height: size * scale)
         crack.size = body.size
         halo.size = CGSize(width: size * 2.4, height: size * 2.4)
+        rune.size = CGSize(width: size * 0.5, height: size * 0.5)
+        rune.position = CGPoint(x: size * 0.32, y: -size * 0.32)
         shadow.size = CGSize(width: size * 0.9, height: size * 0.28)
     }
 
@@ -543,9 +568,43 @@ final class GemNode: SKNode {
                 crack.alpha = 0
             }
         }
-        let targetHalo: CGFloat = gem.kind.isTomato ? 0 : glow ? 0.85 : 0.22
+        if enchantment != gem.enchantment {
+            enchantment = gem.enchantment
+            if let enchantment = gem.enchantment {
+                rune.texture = Self.runeTexture(for: enchantment)
+                rune.isHidden = false
+                halo.color = UIColor(Theme.Colors.candle)
+            } else {
+                rune.isHidden = true
+            }
+        }
+        let targetHalo: CGFloat = gem.kind.isTomato ? 0 : glow ? 0.85 : gem.enchantment != nil ? 0.6 : 0.22
         halo.alpha += (targetHalo - halo.alpha) * 0.15
         body.zRotation = CGFloat(gem.vx) * 0.6
+    }
+
+    private static var runeTextures: [Enchantment: SKTexture] = [:]
+
+    /// The enchantment's symbol on a small dark disc, drawn once and shared.
+    private static func runeTexture(for enchantment: Enchantment) -> SKTexture {
+        if let cached = runeTextures[enchantment] { return cached }
+        let side: CGFloat = 64
+        let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { _ in
+            let disc = UIBezierPath(ovalIn: CGRect(x: 2, y: 2, width: side - 4, height: side - 4))
+            UIColor(Theme.Colors.velvetDeep).setFill()
+            disc.fill()
+            UIColor(Theme.Colors.saffron).setStroke()
+            disc.lineWidth = 3
+            disc.stroke()
+            let config = UIImage.SymbolConfiguration(pointSize: side * 0.42, weight: .bold)
+            if let symbol = UIImage(systemName: enchantment.symbol, withConfiguration: config)?.withTintColor(UIColor(Theme.Colors.ivory), renderingMode: .alwaysOriginal) {
+                let size = symbol.size
+                symbol.draw(in: CGRect(x: (side - size.width) / 2, y: (side - size.height) / 2, width: size.width, height: size.height))
+            }
+        }
+        let texture = SKTexture(image: image)
+        runeTextures[enchantment] = texture
+        return texture
     }
 
     func pop() {

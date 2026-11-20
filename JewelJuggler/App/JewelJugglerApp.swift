@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct JewelJugglerApp: App {
+    @UIApplicationDelegateAdaptor(OnlineAppDelegate.self) private var onlineDelegate
     private let bootstrap: Result<AppDependencies, Error>
 
     init() {
@@ -12,7 +13,7 @@ struct JewelJugglerApp: App {
         WindowGroup {
             switch bootstrap {
             case .success(let dependencies):
-                RootView(dependencies: dependencies)
+                LaunchGateView(dependencies: dependencies, pushRegistration: onlineDelegate)
             case .failure(let error):
                 StartupErrorView(message: error.localizedDescription)
             }

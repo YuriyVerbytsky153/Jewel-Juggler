@@ -35,6 +35,18 @@ final class PlayerProfile {
     var festivalDayKey: String = ""
     var festivalBest: Int = 0
 
+    /// Shards for the Jeweller's Workshop, from shattered gems, banked crowns and the Royal Tour.
+    var shards: Int = 0
+    var totalShards: Int = 0
+    var ownedEnchantmentIDs: [String] = []
+    var equippedEnchantmentIDs: [String] = []
+    var jewelSlots: Int = 1
+
+    /// The Royal Tour in progress or last finished, encoded `TourState`.
+    var tourData: Data?
+    var toursWon: Int = 0
+    var bestTourDepth: Int = 0
+
     var createdAt: Date = Date.now
 
     init() {}
@@ -85,6 +97,13 @@ final class PlayerProfile {
         (0..<ActCatalog.count).first { roses(forAct: $0) == 0 } ?? ActCatalog.count - 1
     }
 
+    func owns(_ enchantment: Enchantment) -> Bool { ownedEnchantmentIDs.contains(enchantment.rawValue) }
+
+    /// Worn enchantments in the order they were set, ignoring unknown or unowned ones.
+    var equippedEnchantments: [Enchantment] {
+        equippedEnchantmentIDs.compactMap(Enchantment.init(rawValue:)).filter(owns).prefix(jewelSlots).map { $0 }
+    }
+
     var loadout: Loadout {
         Loadout(levels: Dictionary(uniqueKeysWithValues: UpgradeKind.allCases.map { ($0, level(for: $0)) }), costume: selectedCostume)
     }
@@ -93,7 +112,8 @@ final class PlayerProfile {
         PlayerStats(totalShows: totalShows, totalBanks: totalBanks, totalCrowns: totalCrowns, totalEncores: totalEncores,
                     totalDecrees: totalDecrees, totalJokers: totalJokers, totalSweetCatches: totalSweetCatches,
                     totalTomatoesDodged: totalTomatoesDodged, bestScore: bestScore, bestAirborne: bestAirborne,
-                    totalRoses: totalRoses, ownedCostumes: Costume.allCases.filter { owns($0) }.count)
+                    totalRoses: totalRoses, ownedCostumes: Costume.allCases.filter { owns($0) }.count,
+                    toursWon: toursWon, enchantmentsOwned: Enchantment.allCases.filter { owns($0) }.count)
     }
 }
 
@@ -134,6 +154,7 @@ final class ShowRecord {
         switch modeKey {
         case "festival": "Festival Night"
         case "act": act.map { "Act \($0.number): \($0.name)" } ?? "Act"
+        case "tour": "Royal Tour"
         default: "Royal Performance"
         }
     }

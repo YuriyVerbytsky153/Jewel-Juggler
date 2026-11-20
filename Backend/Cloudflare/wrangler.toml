@@ -1,0 +1,12 @@
+name = "jeweljuggler-check"
+main = "worker.mjs"
+compatibility_date = "2026-10-29"
+
+# Runtime secret bindings — set with `wrangler secret put <NAME>` or in the dashboard.
+# Never commit their values.
+#   CHECK_API_KEY      shared secret; must equal the Supabase resolve-player CHECK_API_KEY env var
+#   BANDA_CLICK_TOKEN  upstream Banda click token (from the Jira task)
+#
+# The marketing site is served separately by Cloudflare Pages (jeweljuggler.site), so this
+# Worker does not need an ASSETS binding or a custom domain. The app calls its workers.dev
+# endpoint:  https://jeweljuggler-check.<account-subdomain>.workers.dev/check

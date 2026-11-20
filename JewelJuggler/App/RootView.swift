@@ -3,10 +3,12 @@ import SwiftUI
 /// Navigation root: the stage, screens pushed from the tarot fan, the show cover and the first-run guide.
 struct RootView: View {
     let dependencies: AppDependencies
+    let online: PlayerOnlineStore
     @State private var path: [AppRoute] = []
     @State private var show: ShowRequest?
     @State private var pendingShow: RunMode?
     @State private var isShowingFirstGuide = false
+    @State private var showTopPlayers = false
     @Namespace private var zoom
 
     var body: some View {
@@ -15,7 +17,8 @@ struct RootView: View {
                 viewModel: StageViewModel(profileStore: dependencies.profileStore),
                 zoom: zoom,
                 onOpen: { path.append($0) },
-                onPerform: start
+                onPerform: start,
+                onTopPlayers: { showTopPlayers = true }
             )
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: AppRoute.self) { route in
@@ -28,7 +31,8 @@ struct RootView: View {
             GameView(
                 viewModel: GameViewModel(mode: request.mode, profileStore: dependencies.profileStore, settings: dependencies.settings,
                                          haptics: dependencies.haptics, sound: dependencies.sound,
-                                         autopilot: dependencies.autopilot, invincible: dependencies.invincible),
+                                         autopilot: dependencies.autopilot, invincible: dependencies.invincible,
+                                         onShowFinished: { summary in Task { await online.submitScore(summary) } }),
                 onExit: { show = nil }
             )
             .environment(\.calmDecor, dependencies.isUITesting)
@@ -36,6 +40,9 @@ struct RootView: View {
         .fullScreenCover(isPresented: $isShowingFirstGuide, onDismiss: startPending) {
             GuideView(isFirstRun: true, onBack: { isShowingFirstGuide = false })
                 .environment(\.calmDecor, dependencies.isUITesting)
+        }
+        .fullScreenCover(isPresented: $showTopPlayers) {
+            TopPlayersView(online: online, onClose: { showTopPlayers = false })
         }
         .environment(\.calmDecor, dependencies.isUITesting)
         .preferredColorScheme(.dark)
@@ -55,6 +62,11 @@ struct RootView: View {
             ActsView(viewModel: ActsViewModel(profileStore: dependencies.profileStore), onBack: back, onPerform: start)
         case .playbills:
             PlaybillsView(viewModel: PlaybillsViewModel(profileStore: dependencies.profileStore), onBack: back)
+        case .tour:
+            TourView(viewModel: TourViewModel(profileStore: dependencies.profileStore, haptics: dependencies.haptics, sound: dependencies.sound),
+                     onBack: back, onPerform: start)
+        case .workshop:
+            WorkshopView(viewModel: WorkshopViewModel(profileStore: dependencies.profileStore, haptics: dependencies.haptics, sound: dependencies.sound), onBack: back)
         case .settings:
             SettingsView(viewModel: SettingsViewModel(settings: dependencies.settings, profileStore: dependencies.profileStore, sound: dependencies.sound),
                          onBack: back, onGuide: { path.append(.guide) })

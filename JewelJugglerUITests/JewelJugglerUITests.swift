@@ -49,10 +49,17 @@ final class JewelJugglerUITests: XCTestCase {
     private func back() { tap("common.back") }
 
     private func attach(_ name: String) {
-        let shot = XCTAttachment(screenshot: app.screenshot())
+        let screenshot = app.screenshot()
+        let shot = XCTAttachment(screenshot: screenshot)
         shot.name = name
         shot.lifetime = .keepAlways
         add(shot)
+        let dir = ProcessInfo.processInfo.environment["SCREENSHOT_DIR"]
+            ?? "/Users/dmytrozinchenko/Documents/Codex/2026-11-04/s/outputs/screenshots/uitest"
+        let url = URL(fileURLWithPath: dir, isDirectory: true)
+            .appendingPathComponent("\(name).png")
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? screenshot.pngRepresentation.write(to: url)
     }
 
     // MARK: - Stage and navigation
@@ -72,6 +79,7 @@ final class JewelJugglerUITests: XCTestCase {
         XCTAssertTrue(element("stage.screen").waitForExistence(timeout: 10))
         let routes = [("stage.card.wardrobe", "wardrobe.screen"), ("stage.card.trunk", "trunk.screen"),
                       ("stage.card.acts", "acts.screen"), ("stage.card.playbills", "playbills.screen"),
+                      ("stage.card.workshop", "workshop.screen"), ("stage.tour", "tour.screen"),
                       ("stage.settings", "settings.screen"), ("stage.guide", "guide.screen")]
         for (button, screen) in routes {
             tap(button)
@@ -79,6 +87,52 @@ final class JewelJugglerUITests: XCTestCase {
             back()
             XCTAssertTrue(waitHittable("stage.raiseCurtain").exists, "Did not return from \(screen)")
         }
+    }
+
+    // MARK: - Royal Tour and workshop
+
+    func testCuttingAnEnchantmentSetsItInTheCase() {
+        launch()
+        tap("stage.card.workshop")
+        XCTAssertTrue(element("workshop.screen").waitForExistence(timeout: 5))
+        attach("20-workshop")
+        tap("workshop.action.featherstone")
+        attach("21-workshop-cut")
+        XCTAssertTrue(toastLabel().contains("set in the case"))
+        XCTAssertEqual(digits(element("workshop.shards").label), 200 - 12)
+    }
+
+    func testSettingOutOnTourOpensTheFirstStop() {
+        launch()
+        tap("stage.tour")
+        XCTAssertTrue(element("tour.screen").waitForExistence(timeout: 5))
+        attach("22-tour-intro")
+        tap("tour.start")
+        XCTAssertTrue(element("tour.stop.0-0").waitForExistence(timeout: 5))
+        attach("23-tour-map")
+        tap("tour.stop.0-0")
+        tap("tour.perform")
+        XCTAssertTrue(element("game.begin").waitForExistence(timeout: 5))
+        attach("24-tour-playbill")
+    }
+
+    func testClearingATourStopDealsATarotCard() {
+        launch(["--autopilot", "--invincible"])
+        tap("stage.tour")
+        tap("tour.start")
+        tap("tour.stop.0-0")
+        tap("tour.perform")
+        tap("game.begin")
+        XCTAssertTrue(element("curtain.screen").waitForExistence(timeout: 200), "The tour stop never reached the curtain call")
+        XCTAssertTrue(element("curtain.tour").waitForExistence(timeout: 5))
+        tap("curtain.map", timeout: 10)
+        let offer = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'tour.offer.'")).firstMatch
+        XCTAssertTrue(offer.waitForExistence(timeout: 5), "No tarot cards were dealt")
+        attach("25-tour-offer")
+        offer.tap()
+        XCTAssertTrue(toastLabel().contains("joins your hand"))
+        XCTAssertFalse(offer.exists, "The offer should close once a card is taken")
+        attach("26-tour-after-card")
     }
 
     // MARK: - Shop
@@ -177,7 +231,7 @@ final class JewelJugglerUITests: XCTestCase {
         tap("guide.next")
         XCTAssertTrue(element("guide.screen").exists)
         // Skip lives on the first page; the last page has "To the stage!".
-        for _ in 0..<7 { tap("guide.next") }
+        for _ in 0..<9 { tap("guide.next") }
         tap("guide.done")
         XCTAssertTrue(element("game.begin").waitForExistence(timeout: 5))
     }

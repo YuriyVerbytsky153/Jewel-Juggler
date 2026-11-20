@@ -18,6 +18,15 @@ final class StageViewModel {
     var festivalMode: RunMode { .festival(dayKey: profileStore.todayKey) }
     var totalRoses: Int { profileStore.profile.totalRoses }
     var nextAct: Act? { ActCatalog.act(profileStore.profile.nextActIndex) }
+    var shards: Int { profileStore.shards }
+    var worn: Int { profileStore.profile.equippedEnchantments.count }
+
+    /// One line about the Royal Tour for the stage button.
+    var tourNote: String {
+        guard let tour = profileStore.tour, tour.isActive else { return "Roguelike road" }
+        if !tour.offer.isEmpty { return "Card waiting" }
+        return "Stop \(tour.depth + 1) of \(TourRules.rows)"
+    }
 }
 
 /// The Wardrobe rack: browse, buy and wear costumes.

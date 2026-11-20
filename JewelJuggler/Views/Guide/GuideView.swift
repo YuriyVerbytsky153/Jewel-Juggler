@@ -8,9 +8,14 @@ struct GuideView: View {
 
     struct Page: Identifiable {
         let id: Int
-        let art: String
+        /// A generated illustration, or nil to draw `symbol` on a velvet plate instead.
+        let art: String?
+        var symbol: String?
         let title: String
         let text: String
+
+        /// What the page shows, for checking that no two pages share a picture.
+        var picture: String { art ?? symbol ?? "" }
     }
 
     static let pages: [Page] = [
@@ -32,6 +37,10 @@ struct GuideView: View {
              text: "The rare harlequin gem counts as any colour and completes a chord. Treat it with care: dropping it costs two bells."),
         Page(id: 8, art: Art.Guide.jingle, title: "Jingle",
              text: "Catching a gem dead centre in the hands rings the cap. Ring it enough times and JINGLE is ready: press it to slow every gem for three seconds."),
+        Page(id: 9, art: nil, symbol: "map.fill", title: "The Royal Tour",
+             text: "Travel a road of shows to the King's Banquet. Your bells carry from stop to stop, taverns restore them, and every cleared show deals a tarot card that changes the rules for the rest of the tour."),
+        Page(id: 10, art: nil, symbol: "hammer.fill", title: "Jeweller's Workshop",
+             text: "Shattered gems and banked crowns leave shards. Cut them into enchantments and set them in your jewel case: now and then a gem in any show carries that power, marked with its sign."),
     ]
 
     var body: some View {
@@ -51,10 +60,7 @@ struct GuideView: View {
                 ForEach(Self.pages) { item in
                     ScrollView {
                         VStack(spacing: 16) {
-                            Image(item.art)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: 360, maxHeight: 280)
+                            illustration(item)
                                 .clipShape(RoundedRectangle(cornerRadius: 18))
                                 .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.Colors.gold, lineWidth: 3))
                                 .accessibilityHidden(true)
@@ -110,5 +116,23 @@ struct GuideView: View {
         .tiled(Art.Tile.velvet)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(AccessibilityID.Guide.screen)
+    }
+
+    @ViewBuilder
+    private func illustration(_ item: Page) -> some View {
+        if let art = item.art {
+            Image(art)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 360, maxHeight: 280)
+        } else {
+            Image(systemName: item.symbol ?? "questionmark")
+                .font(.system(size: 96, weight: .bold))
+                .foregroundStyle(Theme.Colors.saffron)
+                .shadow(color: Theme.Colors.candle.opacity(0.5), radius: 16)
+                .frame(maxWidth: 360)
+                .frame(height: 220)
+                .background(LinearGradient(colors: [Theme.Colors.velvetLight, Theme.Colors.velvetDeep], startPoint: .top, endPoint: .bottom))
+        }
     }
 }

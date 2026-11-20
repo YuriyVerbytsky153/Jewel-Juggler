@@ -9,6 +9,14 @@ enum ProfileError: LocalizedError, Equatable {
     case costumeAlreadyOwned
     case costumeLocked
     case actLocked
+    case notEnoughShards(needed: Int)
+    case enchantmentOwned
+    case enchantmentLocked
+    case jewelCaseFull
+    case jewelCaseMaxed
+    case noTour
+    case tourStopClosed
+    case tourCardUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -17,8 +25,26 @@ enum ProfileError: LocalizedError, Equatable {
         case .costumeAlreadyOwned: "This costume already hangs in your wardrobe."
         case .costumeLocked: "Buy this costume first."
         case .actLocked: "Earn a rose in the previous act first."
+        case .notEnoughShards(let needed): "You need \(Formatters.integer(needed)) more shards."
+        case .enchantmentOwned: "This enchantment is already in your jewel case."
+        case .enchantmentLocked: "Cut this enchantment first."
+        case .jewelCaseFull: "Every setting in the jewel case is taken. Remove one first."
+        case .jewelCaseMaxed: "The jewel case has no room for another setting."
+        case .noTour: "Set out on a Royal Tour first."
+        case .tourStopClosed: "No road leads there from where you stand."
+        case .tourCardUnavailable: "That card is not on offer."
         }
     }
+}
+
+/// What a tour stop's show did to the Royal Tour.
+enum TourReport: Equatable, Sendable {
+    /// The stop was cleared; a tarot card waits on the map.
+    case cleared(shards: Int)
+    /// The King's Banquet was won.
+    case won(shards: Int, ducats: Int)
+    /// The bells fell silent (or the jester left) and the tour ended.
+    case lost(depth: Int)
 }
 
 /// What a finished show changed, for the Curtain Call.
@@ -32,6 +58,9 @@ struct ShowOutcome: Equatable, Sendable {
     let isNewFestivalBest: Bool
     let newAchievements: [String]
     let totalDucats: Int
+    /// Shards from the show itself plus any tour reward.
+    var shardsEarned = 0
+    var tour: TourReport?
 
     var newRoses: Int { max(0, summary.roses - previousRoses) }
 }
@@ -45,6 +74,8 @@ final class ProfileStore {
 
     private(set) var profile: PlayerProfile
     private(set) var recentShows: [ShowRecord] = []
+    /// The Royal Tour in progress or last finished.
+    private(set) var tour: TourState?
     private(set) var persistenceErrorMessage: String?
 
     static let recentShowLimit = 24
@@ -64,6 +95,7 @@ final class ProfileStore {
             profile = created
             try context.save()
         }
+        tour = profile.tourData.flatMap { try? JSONDecoder().decode(TourState.self, from: $0) }
         try reloadShows()
     }
 
@@ -82,6 +114,11 @@ final class ProfileStore {
     func nextCost(of kind: UpgradeKind) -> Int? { kind.cost(forLevel: profile.level(for: kind) + 1) }
 
     func canAfford(_ amount: Int) -> Bool { profile.ducats >= amount }
+
+    var shards: Int { profile.shards }
+
+    /// Bells on a full cap for the current tour.
+    var tourMaxBells: Int { tour?.maxBells(base: profile.loadout.bells) ?? profile.loadout.bells }
 
     // MARK: - Trunk and wardrobe
 
@@ -108,6 +145,127 @@ final class ProfileStore {
         try save()
     }
 
+    // MARK: - Jeweller's Workshop
+
+    func buyEnchantment(_ enchantment: Enchantment) throws {
+        guard !profile.owns(enchantment) else { throw ProfileError.enchantmentOwned }
+        guard profile.shards >= enchantment.price else { throw ProfileError.notEnoughShards(needed: enchantment.price - profile.shards) }
+        profile.shards -= enchantment.price
+        profile.ownedEnchantmentIDs.append(enchantment.rawValue)
+        // Set it straight into a free slot.
+        if profile.equippedEnchantments.count < profile.jewelSlots {
+            profile.equippedEnchantmentIDs = profile.equippedEnchantments.map(\.rawValue) + [enchantment.rawValue]
+        }
+        try save()
+    }
+
+    func isEquipped(_ enchantment: Enchantment) -> Bool { profile.equippedEnchantments.contains(enchantment) }
+
+    /// Sets an owned enchantment into the jewel case, or takes it out.
+    func toggleEquip(_ enchantment: Enchantment) throws {
+        guard profile.owns(enchantment) else { throw ProfileError.enchantmentLocked }
+        var worn = profile.equippedEnchantments
+        if let index = worn.firstIndex(of: enchantment) {
+            worn.remove(at: index)
+        } else {
+            guard worn.count < profile.jewelSlots else { throw ProfileError.jewelCaseFull }
+            worn.append(enchantment)
+        }
+        profile.equippedEnchantmentIDs = worn.map(\.rawValue)
+        try save()
+    }
+
+    var nextSlotPrice: Int? { JewelCase.slotPrice(forSlot: profile.jewelSlots + 1) }
+
+    func buySlot() throws {
+        guard let price = nextSlotPrice else { throw ProfileError.jewelCaseMaxed }
+        guard profile.shards >= price else { throw ProfileError.notEnoughShards(needed: price - profile.shards) }
+        profile.shards -= price
+        profile.jewelSlots += 1
+        try save()
+    }
+
+    // MARK: - Royal Tour
+
+    /// Starts a fresh tour (replacing any finished or abandoned one) with a full cap of bells.
+    func startTour(seed: UInt64) throws {
+        tour = TourState(seed: seed, bells: profile.loadout.bells)
+        try saveTour()
+    }
+
+    /// Gives up the current tour. Shards already earned are kept.
+    func retireTour() throws {
+        tour = nil
+        try saveTour()
+    }
+
+    /// Moves to a stop. A tavern is resolved at once (returns nil); a show returns the mode to perform.
+    func travel(to stop: TourStop) throws -> RunMode? {
+        guard var current = tour else { throw ProfileError.noTour }
+        guard current.isReachable(stop) else { throw ProfileError.tourStopClosed }
+        guard stop.kind.isPerformance else {
+            current.bells = min(current.maxBells(base: profile.loadout.bells), current.bells + TourRules.tavernBells)
+            current.current = stop
+            current.clearedIDs.append(stop.id)
+            tour = current
+            profile.bestTourDepth = max(profile.bestTourDepth, current.depth)
+            try saveTour()
+            return nil
+        }
+        return .tour(stop)
+    }
+
+    /// Takes one of the offered tarot cards into the hand.
+    func chooseCard(_ card: TourCard) throws {
+        guard var current = tour else { throw ProfileError.noTour }
+        guard current.offer.contains(card) else { throw ProfileError.tourCardUnavailable }
+        current.cards.append(card)
+        current.offer = []
+        if card == .theStar {
+            current.bells = min(current.maxBells(base: profile.loadout.bells), current.bells + 1)
+        }
+        tour = current
+        try saveTour()
+    }
+
+    /// Settles a tour stop's show. Returns the report and the shard and ducat rewards.
+    private func settleTour(_ summary: RunSummary) -> (report: TourReport, shards: Int, ducats: Int)? {
+        guard let stop = summary.mode.tourStop, var current = tour, current.isReachable(stop) else { return nil }
+        let report: TourReport
+        var shards = 0
+        var ducats = 0
+        if summary.result == .goalComplete {
+            current.current = stop
+            current.clearedIDs.append(stop.id)
+            current.bells = max(1, summary.bellsLeft)
+            switch stop.kind {
+            case .banquet:
+                shards = TourRules.banquetShards
+                ducats = TourRules.banquetDucats
+                current.status = .won
+                profile.toursWon += 1
+                report = .won(shards: shards, ducats: ducats)
+            case .tournament:
+                shards = TourRules.tournamentShards
+                report = .cleared(shards: shards)
+            case .show, .tavern:
+                shards = TourRules.showShards
+                report = .cleared(shards: shards)
+            }
+            if current.status == .active {
+                current.offer = TourRules.offer(for: stop.kind, excluding: current.cards, seed: current.offerSeed)
+            }
+        } else {
+            current.status = .lost
+            report = .lost(depth: current.depth)
+        }
+        current.shardsEarned += shards
+        current.ducatsEarned += ducats + summary.ducats
+        profile.bestTourDepth = max(profile.bestTourDepth, current.depth)
+        tour = current
+        return (report, shards, ducats)
+    }
+
     // MARK: - Shows
 
     /// Builds the setup for a show, checking that an act is open.
@@ -115,7 +273,14 @@ final class ProfileStore {
         if let index = mode.actIndex, !profile.isActUnlocked(index) { throw ProfileError.actLocked }
         let finalSeed: UInt64
         if case .festival(let dayKey) = mode { finalSeed = FestivalSeed.seed(for: dayKey) } else { finalSeed = seed }
-        return RunSetup(mode: mode, seed: finalSeed, loadout: profile.loadout)
+        var setup = RunSetup(mode: mode, seed: finalSeed, loadout: profile.loadout, enchantments: profile.equippedEnchantments)
+        if let stop = mode.tourStop {
+            guard let tour else { throw ProfileError.noTour }
+            guard tour.isReachable(stop) else { throw ProfileError.tourStopClosed }
+            setup.modifiers = tour.modifiers
+            setup.startBells = tour.bells
+        }
+        return setup
     }
 
     /// Records a finished show and pays out. Abandoned shows still keep the ducats already banked.
@@ -147,7 +312,12 @@ final class ProfileStore {
             }
         }
 
-        let earned = summary.ducats + roseBonus
+        let tourResult = settleTour(summary)
+        let shardsEarned = summary.shards + (tourResult?.shards ?? 0)
+        profile.shards += shardsEarned
+        profile.totalShards += shardsEarned
+
+        let earned = summary.ducats + roseBonus + (tourResult?.ducats ?? 0)
         profile.ducats += earned
         profile.totalDucatsEarned += earned
         profile.bestScore = max(profile.bestScore, summary.score)
@@ -163,6 +333,7 @@ final class ProfileStore {
         profile.totalSeconds += summary.seconds
 
         context.insert(ShowRecord(summary: summary, date: now()))
+        if tourResult != nil { encodeTour() }
         persistQuietly()
         pruneOldShows()
         try? reloadShows()
@@ -170,7 +341,7 @@ final class ProfileStore {
         let after = achievements.filter { $0.isEarned && !before.contains($0.id) }.map(\.title)
         return ShowOutcome(summary: summary, ducatsEarned: earned, roseBonus: roseBonus, previousRoses: previousRoses,
                            isNewBest: isNewBest && summary.score > 0, isNewFestivalBest: isNewFestivalBest,
-                           newAchievements: after, totalDucats: profile.ducats)
+                           newAchievements: after, totalDucats: profile.ducats, shardsEarned: shardsEarned, tour: tourResult?.report)
     }
 
     /// Wipes every bit of progress (Settings → Reset).
@@ -180,6 +351,7 @@ final class ProfileStore {
         let fresh = PlayerProfile()
         context.insert(fresh)
         profile = fresh
+        tour = nil
         try save()
         try reloadShows()
     }
@@ -200,6 +372,21 @@ final class ProfileStore {
             persistenceErrorMessage = "Progress could not be saved: \(error.localizedDescription)"
             throw error
         }
+    }
+
+    private func encodeTour() {
+        profile.tourData = tour.flatMap { try? JSONEncoder().encode($0) }
+    }
+
+    private func saveTour() throws {
+        encodeTour()
+        try save()
+    }
+
+    /// Seeds shards for UI tests.
+    func grantShards(_ amount: Int) throws {
+        profile.shards += amount
+        try save()
     }
 
     private func persistQuietly() {

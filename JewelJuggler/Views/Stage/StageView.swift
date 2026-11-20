@@ -6,16 +6,19 @@ struct StageView: View {
     let zoom: Namespace.ID
     let onOpen: (AppRoute) -> Void
     let onPerform: (RunMode) -> Void
+    let onTopPlayers: () -> Void
     @State private var liftedCard: AppRoute?
     @State private var bob = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.calmDecor) private var calm
 
-    init(viewModel: StageViewModel, zoom: Namespace.ID, onOpen: @escaping (AppRoute) -> Void, onPerform: @escaping (RunMode) -> Void) {
+    init(viewModel: StageViewModel, zoom: Namespace.ID, onOpen: @escaping (AppRoute) -> Void,
+         onPerform: @escaping (RunMode) -> Void, onTopPlayers: @escaping () -> Void = {}) {
         _viewModel = State(initialValue: viewModel)
         self.zoom = zoom
         self.onOpen = onOpen
         self.onPerform = onPerform
+        self.onTopPlayers = onTopPlayers
     }
 
     var body: some View {
@@ -33,7 +36,7 @@ struct StageView: View {
                         VStack(spacing: 18) {
                             Spacer(minLength: 0)
                             performButtons
-                            tarotFan(cardWidth: 112)
+                            tarotFan(cardWidth: 100)
                             Spacer(minLength: 0)
                         }
                         .frame(maxWidth: 460)
@@ -46,7 +49,7 @@ struct StageView: View {
                         spotlightJester
                         performButtons
                             .frame(maxWidth: 420)
-                        tarotFan(cardWidth: min(96, (proxy.size.width - 48) / 4.2))
+                        tarotFan(cardWidth: min(90, (proxy.size.width - 40) / 4.9))
                             .padding(.top, 4)
                     }
                     .padding(.horizontal, 20)
@@ -76,12 +79,31 @@ struct StageView: View {
             MedallionButton(image: Art.Medallion.help, label: "How to play", size: 44) { onOpen(.guide) }
                 .matchedTransitionSource(id: AppRoute.guide, in: zoom)
                 .accessibilityIdentifier(AccessibilityID.Stage.guide)
+            topPlayersButton
             Spacer()
             DucatBadge(amount: viewModel.ducats)
                 .accessibilityIdentifier(AccessibilityID.Stage.ducats)
         }
         .padding(.horizontal, 14)
         .padding(.top, 4)
+    }
+
+    /// Brass-style medallion opening the online Top Players board.
+    private var topPlayersButton: some View {
+        Button(action: onTopPlayers) {
+            Image(systemName: "trophy.fill")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(Theme.Colors.saffron)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Theme.Colors.velvetDeep.opacity(0.88)))
+                .overlay(Circle().strokeBorder(Theme.Colors.gold.opacity(0.85), lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+        }
+        .buttonStyle(.plain)
+        .frame(minWidth: Theme.Metrics.minTarget, minHeight: Theme.Metrics.minTarget)
+        .contentShape(Circle())
+        .accessibilityLabel("Top Players")
+        .accessibilityIdentifier("stage.topPlayers")
     }
 
     private var logo: some View {
@@ -138,19 +160,36 @@ struct StageView: View {
             .buttonStyle(CourtButtonStyle(kind: .gold, size: 24, minHeight: 66))
             .accessibilityIdentifier(AccessibilityID.Stage.raiseCurtain)
 
-            Button {
-                onPerform(viewModel.festivalMode)
-            } label: {
-                HStack(spacing: 8) {
-                    Text("Festival Night")
-                    Spacer(minLength: 4)
-                    Text(viewModel.festivalBest > 0 ? "Best \(Formatters.integer(viewModel.festivalBest))" : "Ducats ×1.5")
-                        .font(.court(.caption, weight: .bold))
+            HStack(spacing: 10) {
+                Button {
+                    onPerform(viewModel.festivalMode)
+                } label: {
+                    VStack(spacing: 0) {
+                        Text("Festival")
+                        Text(viewModel.festivalBest > 0 ? "Best \(Formatters.integer(viewModel.festivalBest))" : "Ducats ×1.5")
+                            .font(.court(.caption, weight: .bold))
+                            .opacity(0.85)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
+                .buttonStyle(CourtButtonStyle(kind: .teal, size: 18, minHeight: 56))
+                .accessibilityIdentifier(AccessibilityID.Stage.festival)
+
+                Button {
+                    open(.tour)
+                } label: {
+                    VStack(spacing: 0) {
+                        Text("Royal Tour")
+                        Text(viewModel.tourNote)
+                            .font(.court(.caption, weight: .bold))
+                            .opacity(0.85)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(CourtButtonStyle(kind: .plum, size: 18, minHeight: 56))
+                .matchedTransitionSource(id: AppRoute.tour, in: zoom)
+                .accessibilityIdentifier(AccessibilityID.Stage.tour)
             }
-            .buttonStyle(CourtButtonStyle(kind: .teal, size: 18, minHeight: 52))
-            .accessibilityIdentifier(AccessibilityID.Stage.festival)
         }
     }
 
@@ -158,6 +197,8 @@ struct StageView: View {
         let route: AppRoute
         let art: String
         let note: String
+        /// Drawn on the card back for screens without their own illustration.
+        var symbol: String?
         var id: AppRoute { route }
     }
 
@@ -166,6 +207,7 @@ struct StageView: View {
             CardSpec(route: .wardrobe, art: Art.Card.wardrobe, note: "Costumes"),
             CardSpec(route: .trunk, art: Art.Card.trunk, note: "Props"),
             CardSpec(route: .acts, art: Art.Card.acts, note: "\(viewModel.totalRoses) roses"),
+            CardSpec(route: .workshop, art: Art.Card.back, note: "\(viewModel.shards) shards", symbol: "hammer.fill"),
             CardSpec(route: .playbills, art: Art.Card.playbills, note: "Records"),
         ]
     }
@@ -173,12 +215,12 @@ struct StageView: View {
     private func tarotFan(cardWidth: CGFloat) -> some View {
         HStack(spacing: -cardWidth * 0.08) {
             ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
-                let angle = Double(index) * 7 - 10.5
+                let angle = (Double(index) - Double(cards.count - 1) / 2) * 7
                 let isLifted = liftedCard == card.route
                 Button {
                     open(card.route)
                 } label: {
-                    TarotCard(art: card.art, title: card.route.title, note: card.note, width: cardWidth)
+                    TarotCard(art: card.art, title: card.route.title, note: card.note, width: cardWidth, symbol: card.symbol)
                 }
                 .buttonStyle(.plain)
                 .matchedTransitionSource(id: card.route, in: zoom)
@@ -216,12 +258,22 @@ struct TarotCard: View {
     let title: String
     let note: String
     let width: CGFloat
+    var symbol: String?
 
     var body: some View {
         Image(art)
             .resizable()
             .scaledToFit()
             .frame(width: width, height: width * 1.6)
+            .overlay {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: width * 0.34, weight: .bold))
+                        .foregroundStyle(Theme.Colors.saffron)
+                        .shadow(color: .black.opacity(0.6), radius: 3, y: 2)
+                        .offset(y: -width * 0.22)
+                }
+            }
             .overlay(alignment: .bottom) {
                 VStack(spacing: 0) {
                     Text(title)

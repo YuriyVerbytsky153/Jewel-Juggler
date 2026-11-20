@@ -11,6 +11,12 @@ enum RunEvent: Equatable, Sendable {
     case graceUsed(gem: FlyingGem)
     case tomatoCaught(gem: FlyingGem)
     case tomatoSplat(gem: FlyingGem)
+    /// Temperance: a caught tomato fed the applause instead of costing a bell.
+    case tomatoFeast(gem: FlyingGem)
+    /// A Phoenix Opal reformed instead of shattering or falling.
+    case reborn(gem: FlyingGem)
+    /// A Powder Garnet swept this many other gems into the chest.
+    case powderBurst(count: Int)
     case encoreStarted
     case encoreEnded
     case decreeWarning(Decree)
@@ -71,6 +77,10 @@ struct RunSummary: Equatable, Sendable {
     let tomatoesDodged: Int
     let seconds: Int
     let roses: Int
+    /// Shards picked up for the Jeweller's Workshop.
+    var shards = 0
+    /// Bells still on the cap when the curtain fell (carried along a Royal Tour).
+    var bellsLeft = 0
 }
 
 /// The rules of one show, free of any UI framework so they can be unit tested.
@@ -99,6 +109,7 @@ struct RunSession {
     let setup: RunSetup
     let config: RunConfig
     let loadout: Loadout
+    let modifiers: RunModifiers
     var costume: Costume { loadout.costume }
     /// UI tests: bells never fall below one.
     var isInvincible = false
@@ -124,6 +135,7 @@ struct RunSession {
     private(set) var catches = 0
     private(set) var sweetCatches = 0
     private(set) var tomatoesDodged = 0
+    private(set) var shards = 0
     private(set) var cleanStreak = 0
     private(set) var bestCleanStreak = 0
     private(set) var maxAirborne = 0
@@ -149,14 +161,19 @@ struct RunSession {
     private var lastDecree: Decree?
     private var accumulator = 0.0
     private var rng: SeededGenerator
+    /// Enchantment rolls use their own stream so a Festival's gems stay the same for every juggler.
+    private var enchantRng: SeededGenerator
 
     init(setup: RunSetup) {
         self.setup = setup
         config = setup.config
         loadout = setup.loadout
-        bells = setup.loadout.bells
+        modifiers = setup.modifiers
+        let fullCap = setup.loadout.bells + setup.modifiers.extraBells
+        bells = max(1, min(fullCap, setup.startBells ?? fullCap))
         rng = SeededGenerator(seed: setup.seed)
-        nextDecreeAt = 20
+        enchantRng = SeededGenerator(seed: setup.seed ^ 0x5EED_CAFE_F00D_D00D)
+        nextDecreeAt = setup.config.firstDecree
     }
 
     // MARK: Derived
@@ -164,23 +181,34 @@ struct RunSession {
     var isOver: Bool { result != nil }
     var isEncore: Bool { encoreTime > 0 }
     var isJingling: Bool { jingleTime > 0 }
-    var isJingleReady: Bool { !isJingling && jingleCharge >= loadout.jingleCharges }
-    var jingleFraction: Double { isJingling ? jingleTime / Self.jingleDuration : min(1, Double(jingleCharge) / Double(loadout.jingleCharges)) }
-    var encoreFraction: Double { isEncore ? encoreTime / loadout.encoreDuration : 0 }
+    var isJingleReady: Bool { !isJingling && jingleCharge >= jingleCharges }
+    var jingleFraction: Double { isJingling ? jingleTime / jingleDuration : min(1, Double(jingleCharge) / Double(jingleCharges)) }
+    var encoreFraction: Double { isEncore ? encoreTime / encoreDuration : 0 }
     var airborne: Int { gems.filter { !$0.kind.isTomato }.count }
-    var catchHalfWidth: Double { loadout.catchHalfWidth }
+    var catchHalfWidth: Double { loadout.catchHalfWidth * modifiers.catchWidth }
+    var jingleCharges: Int { max(2, loadout.jingleCharges + modifiers.jingleChargeDelta) }
+    var jingleDuration: Double { Self.jingleDuration + modifiers.jingleBonus }
+    var encoreDuration: Double { loadout.encoreDuration + modifiers.encoreBonus }
+    /// Silver Bells V or Judgement: the first drop is forgiven.
+    var hasGrace: Bool { loadout.hasGrace || modifiers.grace }
     /// Gentle warm-up: gems fall slower for the first 20 seconds, then speed up slowly.
     var gravity: Double {
-        elapsed < 20 ? 0.8 + elapsed * 0.01 : min(1.45, 1.0 + (elapsed - 20) * 0.0035)
+        (elapsed < 20 ? 0.8 + elapsed * 0.01 : min(1.45, 1.0 + (elapsed - 20) * 0.0035)) * modifiers.gravity
     }
-    var maxBells: Int { loadout.bells }
+
+    /// Gravity for one gem: crowns are heavier, a Featherstone floats.
+    func gravity(for gem: FlyingGem) -> Double {
+        gravity * gem.kind.gravityScale * (gem.enchantment?.gravityScale ?? 1)
+    }
+
+    var maxBells: Int { loadout.bells + modifiers.extraBells }
 
     /// How dark the hall is right now (Candle Gust), 0...1.
     var darkness: Double { decree.activeDecree == .candleGust ? loadout.gustDarkness : 0 }
 
     /// How many gems the court wants in the air right now.
     var desiredGems: Int {
-        let base = min(config.maxGems, 1 + Int(elapsed / 15))
+        let base = min(max(1, config.maxGems + modifiers.maxGemsDelta), 1 + Int(elapsed / 15))
         return base + (isEncore ? 1 : 0)
     }
 
@@ -191,7 +219,7 @@ struct RunSession {
     }
 
     func tossLimit(for gem: FlyingGem) -> Int {
-        loadout.tossLimit + costume.extraTosses(for: gem.kind)
+        max(1, loadout.tossLimit + costume.extraTosses(for: gem.kind) + modifiers.tossLimitDelta)
     }
 
     /// 0...3 crack stage for rendering. Stage 3 means the next toss shatters it.
@@ -228,7 +256,7 @@ struct RunSession {
         RunSummary(mode: setup.mode, costume: costume, result: result ?? .abandoned, score: score, ducats: ducats,
                    banks: banks, crowns: crownsFused, encores: encores, decrees: decreesWeathered, jokers: jokersBanked,
                    maxAirborne: maxAirborne, catches: catches, sweetCatches: sweetCatches, bellsLost: bellsLost,
-                   tomatoesDodged: tomatoesDodged, seconds: Int(elapsed), roses: roses)
+                   tomatoesDodged: tomatoesDodged, seconds: Int(elapsed), roses: roses, shards: shards, bellsLeft: bells)
     }
 
     // MARK: Input
@@ -253,7 +281,7 @@ struct RunSession {
     mutating func activateJingle() -> Bool {
         guard isJingleReady, !isOver else { return false }
         jingleCharge = 0
-        jingleTime = Self.jingleDuration
+        jingleTime = jingleDuration
         return true
     }
 
@@ -292,7 +320,7 @@ struct RunSession {
 
         maxAirborne = max(maxAirborne, airborne)
         if !isEncore {
-            applause += dt * 0.022 * Double(max(0, airborne - 1))
+            applause += dt * 0.022 * Double(max(0, airborne - 1)) * modifiers.applauseRate
             if applause >= 1 { startEncore(&events) }
         }
         checkGoal(&events)
@@ -347,7 +375,7 @@ struct RunSession {
             if left <= 0 {
                 decree = .none
                 decreesWeathered += 1
-                nextDecreeAt = elapsed + rng.value(in: 14...20)
+                nextDecreeAt = elapsed + rng.value(in: config.decreeGap)
                 events.append(.decreeEnded(d))
             } else {
                 decree = .active(d, remaining: left)
@@ -371,23 +399,32 @@ struct RunSession {
     }
 
     private mutating func spawnGem(_ events: inout [RunEvent], gift: Bool = false) {
-        let jokerChance = config.jokers && elapsed > 20 ? 0.07 * costume.jokerChanceMultiplier : 0
-        let kind: GemKind
+        let jokersOpen = elapsed > 20 || modifiers.earlyJokers
+        let jokerChance = config.jokers && jokersOpen ? 0.07 * costume.jokerChanceMultiplier * modifiers.jokerChance : 0
+        var kind: GemKind
+        var enchantment: Enchantment?
         if rng.unit() < jokerChance {
             kind = .joker
         } else {
             let palette = colorsInPlay
             kind = .plain(palette[Int(rng.next() % UInt64(palette.count))])
+            let worn = setup.enchantments
+            if !gift, !worn.isEmpty, elapsed > JewelCase.firstSecond, enchantRng.unit() < JewelCase.spawnChance {
+                let chosen = worn[Int(enchantRng.next() % UInt64(worn.count))]
+                enchantment = chosen
+                kind = .plain(chosen.color)
+            }
         }
-        spawn(kind: kind, gift: gift, &events)
+        spawn(kind: kind, gift: gift, enchantment: enchantment, &events)
     }
 
-    private mutating func spawn(kind: GemKind, gift: Bool = false, _ events: inout [RunEvent]) {
+    private mutating func spawn(kind: GemKind, gift: Bool = false, enchantment: Enchantment? = nil, _ events: inout [RunEvent]) {
         // Keep new drops away from the jester's hands so each one asks for a move.
         var x = rng.value(in: 0.14...0.86)
         if abs(x - jesterX) < 0.12 { x = x < 0.5 ? x + 0.3 : x - 0.3 }
         let gem = FlyingGem(id: nextID, kind: kind, x: x, y: Self.spawnY,
-                            vx: rng.value(in: -0.05...0.05), vy: kind.isTomato ? -0.25 : -0.05, isEncoreGift: gift)
+                            vx: rng.value(in: -0.05...0.05), vy: kind.isTomato ? -0.25 : -0.05, isEncoreGift: gift,
+                            enchantment: enchantment)
         nextID += 1
         gems.append(gem)
         events.append(.spawned(id: gem.id))
@@ -398,7 +435,12 @@ struct RunSession {
         while index < gems.count {
             var gem = gems[index]
             let previousY = gem.y
-            gem.vy -= gravity * gem.kind.gravityScale * dt
+            gem.vy -= gravity(for: gem) * dt
+            if gem.enchantment == .lodestone, gem.isFalling {
+                // Drawn towards the hands, a little more strongly the lower it gets.
+                gem.vx += (jesterX - gem.x) * 2.6 * dt
+                gem.vx = max(-0.7, min(0.7, gem.vx))
+            }
             gem.x += gem.vx * dt
             gem.y += gem.vy * dt
             if gem.x < Self.wallInset { gem.x = Self.wallInset; gem.vx = abs(gem.vx) }
@@ -411,6 +453,12 @@ struct RunSession {
                 continue
             }
             if gem.y <= Self.floorY {
+                if gem.enchantment == .phoenixOpal, !gem.reborn {
+                    rebirth(&gem, fromFloor: true, &events)
+                    gems[index] = gem
+                    index += 1
+                    continue
+                }
                 gems.remove(at: index)
                 handleFloor(gem, &events)
                 if isOver { return }
@@ -425,27 +473,33 @@ struct RunSession {
         var gem = gems[index]
         if gem.kind.isTomato {
             gems.remove(at: index)
+            if modifiers.harmlessTomatoes {
+                events.append(.tomatoFeast(gem: gem))
+                if !isEncore { applause = min(1, applause + 0.08) }
+                return false
+            }
             events.append(.tomatoCaught(gem: gem))
             loseBells(1, &events)
             return false
         }
 
-        let sweet = abs(gem.x - jesterX) <= catchHalfWidth * Self.sweetSpotFraction
+        let sweet = gem.enchantment == .prismQuartz || abs(gem.x - jesterX) <= catchHalfWidth * Self.sweetSpotFraction
         catches += 1
         events.append(.caught(id: gem.id, sweet: sweet))
         if sweet {
             sweetCatches += 1
-            if !isJingling, jingleCharge < loadout.jingleCharges {
+            if !isJingling, jingleCharge < jingleCharges {
                 jingleCharge += 1
-                if jingleCharge == loadout.jingleCharges { events.append(.jingleReady) }
+                if jingleCharge == jingleCharges { events.append(.jingleReady) }
             }
         }
-        if !isEncore { applause = min(1, applause + 0.012) }
-        score += points(base: 1 * max(1, airborne), for: gem.kind)
+        if !isEncore { applause = min(1, applause + 0.012 * modifiers.applauseRate) }
+        score += points(base: Int((Double(max(1, airborne)) * modifiers.catchPoints).rounded()), for: gem.kind)
 
-        if let color = advanceChord(with: gem.kind) {
+        if let color = advanceChord(with: gem) {
             gem.kind = .crown(color)
             gem.tosses = 0
+            gem.enchantment = nil
             crownsFused += 1
             events.append(.fused(id: gem.id, color: color))
         }
@@ -454,12 +508,25 @@ struct RunSession {
             bankArmed = false
             gems.remove(at: index)
             bank(gem, &events)
+            if gem.enchantment == .powderGarnet {
+                // The powder flashes and every other gem in the air drops into the chest as well.
+                let swept = gems.filter { !$0.kind.isTomato }
+                gems.removeAll { !$0.kind.isTomato }
+                for other in swept { bank(other, &events) }
+                events.append(.powderBurst(count: swept.count))
+            }
             return false
         }
 
         if gem.tosses >= tossLimit(for: gem) {
+            if gem.enchantment == .phoenixOpal, !gem.reborn {
+                rebirth(&gem, &events)
+                gems[index] = gem
+                return true
+            }
             gems.remove(at: index)
             events.append(.shattered(gem: gem))
+            shards += 1
             cleanStreak = 0
             loseBells(1, &events)
             return false
@@ -471,8 +538,13 @@ struct RunSession {
     }
 
     /// Feeds a catch into the chord. Returns the colour to fuse into when the chord completes.
-    private mutating func advanceChord(with kind: GemKind) -> GemColor? {
-        switch kind {
+    private mutating func advanceChord(with gem: FlyingGem) -> GemColor? {
+        if gem.enchantment == .prismQuartz {
+            // Like a Joker: it fits whichever chord is in progress.
+            chordCount += 1
+            return completeChord()
+        }
+        switch gem.kind {
         case .plain(let color):
             let weight = costume.chordWeight(for: color)
             if chordColor == nil || chordColor == color {
@@ -486,7 +558,11 @@ struct RunSession {
         case .crown, .tomato:
             return nil
         }
-        guard chordCount >= 3, let color = chordColor else { return nil }
+        return completeChord()
+    }
+
+    private mutating func completeChord() -> GemColor? {
+        guard chordCount >= modifiers.chordLength, let color = chordColor else { return nil }
         chordCount = 0
         chordColor = nil
         return color
@@ -495,7 +571,7 @@ struct RunSession {
     private mutating func toss(_ gem: inout FlyingGem) {
         gem.tosses += 1
         let apex = rng.value(in: 0.62...0.86)
-        let g = gravity * gem.kind.gravityScale
+        let g = gravity(for: gem)
         let height = apex - Self.handY
         gem.vy = (2 * g * height).squareRoot()
         let flight = 2 * gem.vy / g
@@ -505,11 +581,27 @@ struct RunSession {
         gem.y = Self.handY
     }
 
+    /// A Phoenix Opal reforms: fresh, uncracked and flying again.
+    private mutating func rebirth(_ gem: inout FlyingGem, fromFloor: Bool = false, _ events: inout [RunEvent]) {
+        gem.reborn = true
+        toss(&gem)
+        gem.tosses = 0
+        if fromFloor {
+            // Rise from the boards rather than from the hands, with a little more lift.
+            gem.y = Self.floorY + 0.01
+            gem.vy *= 1.12
+        }
+        events.append(.reborn(gem: gem))
+    }
+
     private mutating func bank(_ gem: FlyingGem, _ events: inout [RunEvent]) {
         let wearBonus = 1 + 0.5 * Double(gem.tosses)
-        let pts = points(base: Int(Double(gem.kind.bankValue) * wearBonus), for: gem.kind)
+        let cardBonus = modifiers.bankPoints * (gem.kind.isCrown ? modifiers.crownBank : 1)
+        let pts = points(base: Int(Double(gem.kind.bankValue) * wearBonus * cardBonus), for: gem.kind)
         let baseDucats = Double(gem.kind.bankValue) / 5 * (1 + 0.25 * Double(gem.tosses))
-        let coins = Int((baseDucats * Double(costume.ducatMultiplier(for: gem.kind)) * config.ducatMultiplier).rounded())
+        let midas = gem.enchantment == .midasTopaz ? 3.0 : 1.0
+        let coins = Int((baseDucats * Double(costume.ducatMultiplier(for: gem.kind)) * midas * config.ducatMultiplier).rounded())
+        if gem.kind.isCrown { shards += 1 }
         score += pts
         ducats += coins
         banks += 1
@@ -521,7 +613,7 @@ struct RunSession {
 
     /// Applies Encore, Candle Gust and Ruby Hour to a number of points.
     func points(base: Int, for kind: GemKind) -> Int {
-        var value = Double(base)
+        var value = Double(base) * modifiers.points
         if isEncore { value *= 2 }
         switch decree.activeDecree {
         case .rubyHour: value *= kind.color == .ruby ? 3 : 0
@@ -538,9 +630,9 @@ struct RunSession {
             return
         }
         cleanStreak = 0
-        applause = max(0, applause - 0.25)
+        applause = modifiers.drainApplauseOnDrop ? 0 : max(0, applause - 0.25)
         var cost = gem.kind.dropCost(costume: costume)
-        if loadout.hasGrace, !graceUsed {
+        if hasGrace, !graceUsed {
             graceUsed = true
             cost = 0
             events.append(.graceUsed(gem: gem))
@@ -564,7 +656,7 @@ struct RunSession {
     private mutating func startEncore(_ events: inout [RunEvent]) {
         applause = 0
         encores += 1
-        encoreTime = loadout.encoreDuration
+        encoreTime = encoreDuration
         events.append(.encoreStarted)
         // The king tosses one more gem onto the stage to celebrate.
         spawnGem(&events, gift: true)
@@ -603,7 +695,7 @@ struct RunSession {
 
     /// Seconds until a gem falls through the hands' height, or nil if it never will.
     func timeToHands(_ gem: FlyingGem) -> Double? {
-        let g = gravity * gem.kind.gravityScale
+        let g = gravity(for: gem)
         let dy = gem.y - Self.handY
         // Solve y + vy t - g t²/2 = handY for the later root.
         let disc = gem.vy * gem.vy + 2 * g * dy
@@ -616,8 +708,9 @@ struct RunSession {
 
     /// Places a gem directly (unit tests).
     @discardableResult
-    mutating func insertForTesting(_ kind: GemKind, x: Double, y: Double, vx: Double = 0, vy: Double = 0, tosses: Int = 0) -> Int {
-        let gem = FlyingGem(id: nextID, kind: kind, x: x, y: y, vx: vx, vy: vy, tosses: tosses)
+    mutating func insertForTesting(_ kind: GemKind, x: Double, y: Double, vx: Double = 0, vy: Double = 0, tosses: Int = 0,
+                                   enchantment: Enchantment? = nil) -> Int {
+        let gem = FlyingGem(id: nextID, kind: kind, x: x, y: y, vx: vx, vy: vy, tosses: tosses, enchantment: enchantment)
         nextID += 1
         gems.append(gem)
         return gem.id

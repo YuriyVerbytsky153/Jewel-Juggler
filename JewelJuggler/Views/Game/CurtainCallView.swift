@@ -16,14 +16,23 @@ struct CurtainCallView: View {
         ZStack {
             CurtainPair(closed: curtainsClosed)
             if showProgramme {
-                ScrollView {
-                    programme
+                VStack(spacing: 0) {
+                    ScrollView {
+                        programme
+                            .padding(.horizontal, 18)
+                            .padding(.top, 24)
+                            .padding(.bottom, 12)
+                            .frame(maxWidth: 460)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    // The choices stay pinned under the programme so they never scroll off a short screen.
+                    actions
                         .padding(.horizontal, 18)
-                        .padding(.vertical, 24)
+                        .padding(.top, 6)
+                        .padding(.bottom, 12)
                         .frame(maxWidth: 460)
-                        .frame(maxWidth: .infinity)
                 }
-                .scrollBounceBehavior(.basedOnSize)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -42,7 +51,8 @@ struct CurtainCallView: View {
 
     private var headline: String {
         switch summary.result {
-        case .goalComplete: "Bravo!"
+        case .goalComplete:
+            if case .won = outcome.tour { "Long live the Jester!" } else { "Bravo!" }
         case .bellsOut: "The bells fell silent"
         case .abandoned: "Curtain"
         }
@@ -124,12 +134,31 @@ struct CurtainCallView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                Text("Purse \(Formatters.integer(outcome.totalDucats))")
-                    .font(.court(.footnote, weight: .bold))
-                    .foregroundStyle(Theme.Colors.inkSoft)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("Purse \(Formatters.integer(outcome.totalDucats))")
+                        .font(.court(.footnote, weight: .bold))
+                        .foregroundStyle(Theme.Colors.inkSoft)
+                    if outcome.shardsEarned > 0 {
+                        Text("+\(Formatters.integer(outcome.shardsEarned)) shards")
+                            .font(.court(.caption, weight: .bold))
+                            .foregroundStyle(Theme.Colors.velvetLight)
+                            .accessibilityIdentifier(AccessibilityID.Curtain.shards)
+                    }
+                }
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier(AccessibilityID.Curtain.ducats)
+
+            if let report = outcome.tour {
+                Text(tourText(report))
+                    .font(.court(.subheadline, weight: .semibold))
+                    .foregroundStyle(Theme.Colors.ink)
+                    .multilineTextAlignment(.center)
+                    .padding(10)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.Colors.ink.opacity(0.06)))
+                    .accessibilityIdentifier(AccessibilityID.Curtain.tour)
+            }
 
             if !outcome.newAchievements.isEmpty {
                 VStack(spacing: 4) {
@@ -146,22 +175,47 @@ struct CurtainCallView: View {
                 }
             }
 
-            VStack(spacing: 10) {
-                if summary.result == .goalComplete, let next = viewModel.nextAct {
-                    Button("Next: \(next.name)") { viewModel.restart(mode: .act(next.index)) }
-                        .buttonStyle(CourtButtonStyle(kind: .gold, size: 20))
-                        .accessibilityIdentifier(AccessibilityID.Curtain.next)
-                }
-                Button(summary.result == .goalComplete ? "Perform again" : "Perform again") { viewModel.restart() }
-                    .buttonStyle(CourtButtonStyle(kind: summary.result == .goalComplete && viewModel.nextAct != nil ? .teal : .gold, size: 20))
-                    .accessibilityIdentifier(AccessibilityID.Curtain.again)
-                Button("Leave the stage", action: onLeave)
-                    .buttonStyle(CourtButtonStyle(kind: .plum, size: 18))
-                    .accessibilityIdentifier(AccessibilityID.Curtain.leave)
-            }
-            .padding(.top, 4)
         }
         .parchmentPanel(padding: 24)
+    }
+
+    private var actions: some View {
+        VStack(spacing: 8) {
+            if viewModel.isTour {
+                Button(isTourOver ? "Back to the map" : "Choose a tarot card", action: onLeave)
+                    .buttonStyle(CourtButtonStyle(kind: .gold, size: 20, minHeight: 54))
+                    .accessibilityIdentifier(AccessibilityID.Curtain.map)
+            } else {
+                if summary.result == .goalComplete, let next = viewModel.nextAct {
+                    Button("Next: \(next.name)") { viewModel.restart(mode: .act(next.index)) }
+                        .buttonStyle(CourtButtonStyle(kind: .gold, size: 20, minHeight: 54))
+                        .accessibilityIdentifier(AccessibilityID.Curtain.next)
+                }
+                HStack(spacing: 10) {
+                    Button("Perform again") { viewModel.restart() }
+                        .buttonStyle(CourtButtonStyle(kind: summary.result == .goalComplete && viewModel.nextAct != nil ? .teal : .gold, size: 17, minHeight: 50))
+                        .accessibilityIdentifier(AccessibilityID.Curtain.again)
+                    Button("Leave", action: onLeave)
+                        .buttonStyle(CourtButtonStyle(kind: .plum, size: 17, minHeight: 50))
+                        .accessibilityLabel("Leave the stage")
+                        .accessibilityIdentifier(AccessibilityID.Curtain.leave)
+                }
+            }
+        }
+    }
+
+    /// True when there is no card to choose: the tour was won or lost.
+    private var isTourOver: Bool {
+        if case .cleared = outcome.tour { return false }
+        return true
+    }
+
+    private func tourText(_ report: TourReport) -> String {
+        switch report {
+        case .cleared: "Stop cleared! Your bells travel on with you. The Fates deal three tarot cards on the map."
+        case .won(_, let ducats): "The King's Banquet is won! The court pays \(ducats) ducats and the tour is complete."
+        case .lost(let depth): depth == 0 ? "The Royal Tour ends before the first stop." : "The Royal Tour ends after \(depth) \(depth == 1 ? "stop" : "stops")."
+        }
     }
 
     private func tag(_ text: String, color: Color) -> some View {

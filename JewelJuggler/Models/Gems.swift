@@ -73,6 +73,12 @@ struct FlyingGem: Identifiable, Equatable, Sendable {
     var tosses: Int = 0
     /// Set when the gem was thrown in by the king at the start of an Encore.
     var isEncoreGift = false
+    /// A power cut in the Jeweller's Workshop.
+    var enchantment: Enchantment?
+    /// A Phoenix Opal that has already reformed once.
+    var reborn = false
 
     var isFalling: Bool { vy < 0 }
+    /// Joker-like: completes any chord.
+    var isWild: Bool { kind.isJoker || enchantment == .prismQuartz }
 }
