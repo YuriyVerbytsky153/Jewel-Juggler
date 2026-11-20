@@ -18,8 +18,8 @@ workflows:
       - name: Build signed release
         script: |
           BUILD_NUMBER=$(date -u +%Y%m%d%H%M)
-          agvtool new-version -all "$BUILD_NUMBER"
-          xcode-project build-ipa --project "JewelJuggler.xcodeproj" --scheme "JewelJuggler" --config Release
+          xcode-project build-ipa --project "JewelJuggler.xcodeproj" --scheme "JewelJuggler" --config Release \
+            --archive-xcargs "CURRENT_PROJECT_VERSION=$BUILD_NUMBER COMPILER_INDEX_STORE_ENABLE=NO"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
